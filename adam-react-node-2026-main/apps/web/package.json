@@ -1,0 +1,34 @@
+{
+  "name": "@adam/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "start": "next start",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@adam/types": "workspace:*",
+    "@headlessui/react": "^2.2.10",
+    "better-auth": "^1.6.23",
+    "lucide-react": "^1.25.0",
+    "next": "16.2.10",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "25.8.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "postcss": "8.5.19",
+    "tailwindcss": "^4.3.3",
+    "typescript": "6.0.3"
+  },
+  "dependenciesMeta": {
+    "@adam/types": {
+      "injected": true
+    }
+  }
+}

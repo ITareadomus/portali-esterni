@@ -1,0 +1,35 @@
+{
+  "name": "adam",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/check-workspace-boundaries.mjs && turbo build",
+    "dev": "turbo prepare:dev && turbo dev",
+    "typecheck": "node scripts/check-workspace-boundaries.mjs && turbo typecheck",
+    "check:workspace-boundaries": "node scripts/check-workspace-boundaries.mjs",
+    "check:no-web-db-import": "node scripts/check-workspace-boundaries.mjs"
+  },
+  "devDependencies": {
+    "turbo": "2.9.14",
+    "typescript": "6.0.3"
+  },
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "sharp"
+    ],
+    "overrides": {
+      "@hono/node-server": "1.19.13",
+      "postcss": "8.5.19",
+      "swagger-ui-dist>@scarf/scarf": "-",
+      "vitest": "3.2.6"
+    }
+  }
+}
