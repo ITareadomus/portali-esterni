@@ -1,0 +1,48 @@
+{
+  "name": "@adam/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "bootstrap:legacy-organization": "node scripts/bootstrap-legacy-organization.mjs",
+    "bootstrap:platform-admin": "node scripts/bootstrap-platform-admin.mjs",
+    "bootstrap:driver-credentials": "node scripts/bootstrap-driver-credentials.mjs",
+    "unbind:platform-admin-organization": "node scripts/unbind-platform-admin-organization.mjs",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@adam/db": "workspace:*",
+    "@adam/types": "workspace:*",
+    "@better-auth/prisma-adapter": "^1.6.23",
+    "@nestjs/common": "11.1.28",
+    "@nestjs/config": "4.0.4",
+    "@nestjs/core": "11.1.28",
+    "@nestjs/platform-express": "11.1.28",
+    "@nestjs/swagger": "11.4.6",
+    "@nestjs/throttler": "^6.5.0",
+    "bcryptjs": "^3.0.3",
+    "better-auth": "^1.6.23",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.14.4",
+    "helmet": "8.1.0",
+    "pg": "^8.22.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "11.0.24",
+    "@types/node": "25.8.0",
+    "@types/pg": "^8.20.0",
+    "typescript": "6.0.3"
+  },
+  "dependenciesMeta": {
+    "@adam/db": {
+      "injected": true
+    },
+    "@adam/types": {
+      "injected": true
+    }
+  }
+}
