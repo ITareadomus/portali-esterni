@@ -385,7 +385,7 @@ function mapHousekeepingStop(
     address: formatStructureAddress(structure),
     customerName,
     logisticCode: toNullableInt(structure.logisticCode),
-    logisticsTaskKind: row.lgOperation?.trim() || null,
+    logisticsTaskKind: mapLgOperation(row.lgOperation),
     straordinaria: isStraordinariaActivity(activityName),
     premium: Boolean(structure.premium),
     customerNote: row.notes?.trim() || null,
@@ -570,6 +570,29 @@ function isDriverAccessBundle(label: string | null): boolean {
 function formatPersonName(name: string | null | undefined, lastname: string | null | undefined): string | null {
   const full = [name?.trim(), lastname?.trim()].filter(Boolean).join(" ").trim();
   return full || null;
+}
+
+function mapLgOperation(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  switch (trimmed) {
+    case "1":
+      return "delivery";
+    case "2":
+      return "pickup";
+    case "3":
+      return "d&p";
+    default:
+      // Keep legacy text values (delivery / pickup / d&p) if already stored as labels.
+      return trimmed;
+  }
 }
 
 function isStraordinariaActivity(activityName: string | null): boolean {
