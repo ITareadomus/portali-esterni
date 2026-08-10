@@ -7,12 +7,6 @@ import type {
   DriverTodayRouteResponse,
 } from "@adam/types";
 import type { DriverAuthSession } from "../driver-auth/driver-auth.service";
-import { LogisticsDbService } from "../logistics-db/logistics-db.service";
-import type {
-  LgDriverDayRow,
-  LgDriverVehicleAssignment,
-  LgTimelineRow,
-} from "../logistics-db/logistics.types";
 import { PrismaService } from "../prisma/prisma.service";
 
 const ROME_TIME_ZONE = "Europe/Rome";
@@ -23,48 +17,67 @@ const KEY_CHOICE_TYPES: Record<number, string> = {
   3: "QR Code",
 };
 
-type AdamStopContext = {
-  logisticCode: number | null;
-  customerName: string | null;
-  address: string | null;
-  customerNote: string | null;
-  cleanerAlias: string | null;
-  cleanerSequence: number | null;
-  cleanerMobile: string | null;
-  cleanerStartTime: string | null;
-  cleanerEndTime: string | null;
-  singleSofabeds: number | null;
-  doubleSofabeds: number | null;
-  checkinDate: string | null;
-  checkoutDate: string | null;
-  checkinTime: string | null;
-  checkoutTime: string | null;
-  logisticsTaskKind: string | null;
-  straordinaria: boolean;
-  premium: boolean;
-  lat: number | null;
-  lng: number | null;
-  sequence: number | null;
-  startTime: string | null;
-  endTime: string | null;
-  travelTime: number | null;
-  drivenByUs: number | null;
-  realStart: string | null;
-  realEnd: string | null;
-  lgPaused: boolean;
-  accessBundles: DriverAccessBundle[];
-};
-
-type SofabedContext = {
-  singleSofabeds: number | null;
-  doubleSofabeds: number | null;
-};
+const housekeepingStopSelect = {
+  id: true,
+  sequence: true,
+  startTime: true,
+  endTime: true,
+  drivenByUs: true,
+  lgSequence: true,
+  lgTravelTime: true,
+  lgStartTime: true,
+  lgEndTime: true,
+  lgOperation: true,
+  notes: true,
+  realStart: true,
+  realEnd: true,
+  lgPaused: true,
+  checkout: true,
+  checkoutTime: true,
+  checkin: true,
+  checkinTime: true,
+  cleanedByUs: true,
+  structure: {
+    select: {
+      logisticCode: true,
+      address1: true,
+      address2: true,
+      lat: true,
+      lng: true,
+      premium: true,
+      singleSofabeds: true,
+      doubleSofabeds: true,
+      structureKeys: true,
+      customer: {
+        select: {
+          name: true,
+          nameFrontend: true,
+        },
+      },
+    },
+  },
+  activity: {
+    select: {
+      langs: {
+        where: { languageId: 1 },
+        select: { name: true },
+        take: 1,
+      },
+    },
+  },
+  assignedUser: {
+    select: {
+      id: true,
+      name: true,
+      lastname: true,
+      mobile: true,
+    },
+  },
+} as const;
 
 @Injectable()
 export class DriverTimelineService {
   constructor(
-    @Inject(LogisticsDbService)
-    private readonly logisticsDb: LogisticsDbService,
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
   ) {}
@@ -74,61 +87,35 @@ export class DriverTimelineService {
     options: { date?: string } = {},
   ): Promise<DriverTodayRouteResponse> {
     const ymd = options.date && isValidYmd(options.date) ? options.date : getTodayInRomeYmd();
-
-    const [dayResult, timelineResult] = await Promise.all([
-      this.logisticsDb.query<LgDriverDayRow>(
-        `SELECT
-           base.driver_id,
-           base.work_date,
-           d.start_time,
-           d.end_time,
-           d.available,
-           (s.id IS NOT NULL) AS selected,
-           CASE
-             WHEN s.vehicle_assignments ? base.driver_id::text
-             THEN s.vehicle_assignments -> base.driver_id::text
-             ELSE NULL
-           END AS vehicle_assignment
-         FROM (SELECT $1::int AS driver_id, $2::date AS work_date) base
-         LEFT JOIN lg_drivers d
-           ON d.driver_id = base.driver_id
-          AND d.work_date = base.work_date
-         LEFT JOIN lg_selected_drivers s
-           ON s.work_date = base.work_date
-          AND base.driver_id = ANY(s.drivers)
-         LIMIT 1`,
-        [session.driverId, ymd],
-      ),
-      this.logisticsDb.query<LgTimelineRow>(
-        `SELECT
-           id, work_date, driver_id, task_id, logistic_code,
-           address, lat, lng, checkin_date, checkout_date, checkin_time, checkout_time,
-           straordinaria, customer_name, start_time, end_time, sequence, travel_time,
-           logistics_task_kind
-         FROM lg_timeline
-         WHERE driver_id = $1 AND work_date = $2::date
-         ORDER BY sequence ASC NULLS LAST, id ASC`,
-        [session.driverId, ymd],
-      ),
-    ]);
-
-    const day = dayResult.rows[0] ?? null;
-    const stops = timelineResult.rows;
-    const vehicle = mapVehicle(day?.vehicle_assignment ?? null);
     const driverProfile = await this.loadDriverProfile(session.driverId);
+    const keyTypeLabels = await this.loadStructureKeyTypeLabels();
 
-    const taskIds = stops
-      .map((stop) => Number(stop.task_id))
-      .filter((taskId): taskId is number => Number.isInteger(taskId) && taskId > 0);
-    const logisticCodes = stops
-      .map((stop) => Number(stop.logistic_code))
-      .filter((code): code is number => Number.isInteger(code) && code > 0);
+    // Compare DATE columns as YMD strings to avoid timezone shifts with JS Date.
+    const idRows = await this.prisma.client.$queryRaw<Array<{ id: number }>>`
+      SELECT id
+      FROM app_housekeeping
+      WHERE driven_by_us = ${session.driverId}
+        AND (
+          checkout = ${ymd}
+          OR checkin = ${ymd}
+        )
+        AND IFNULL(deleted, 0) = 0
+        AND deleted_at IS NULL
+      ORDER BY lg_sequence ASC, id ASC
+    `;
 
-    const [adamByTaskId, premiumByTaskId, sofabedsByLogisticCode] = await Promise.all([
-      this.loadAdamStopContext(taskIds),
-      this.loadPremiumByTaskId(ymd, taskIds),
-      this.loadSofabedsByLogisticCode(logisticCodes),
-    ]);
+    const taskIds = idRows
+      .map((row) => Number(row.id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    const rows =
+      taskIds.length === 0
+        ? []
+        : await this.prisma.client.appHousekeeping.findMany({
+            where: { id: { in: taskIds } },
+            orderBy: [{ lgSequence: "asc" }, { id: "asc" }],
+            select: housekeepingStopSelect,
+          });
 
     return {
       date: { ymd },
@@ -136,45 +123,24 @@ export class DriverTimelineService {
         id: session.driverId,
         name: driverProfile.name,
         lastname: driverProfile.lastname,
-        startTime: formatTime(day?.start_time),
-        endTime: formatTime(day?.end_time),
-        available: day?.available ?? null,
-        selected: Boolean(day?.selected),
-        vehicle,
+        startTime: null,
+        endTime: null,
+        available: null,
+        selected: rows.length > 0,
+        vehicle: null,
       },
-      stops: stops.map((row) => {
-        const taskId = Number(row.task_id);
-        const logisticCode = Number(row.logistic_code);
-        const adam =
-          Number.isInteger(taskId) && taskId > 0 ? (adamByTaskId.get(taskId) ?? null) : null;
-        const premium =
-          adam?.premium === true
-            ? true
-            : Number.isInteger(taskId) && taskId > 0
-              ? Boolean(premiumByTaskId.get(taskId))
-              : false;
-        const sofabeds =
-          adam?.singleSofabeds != null || adam?.doubleSofabeds != null
-            ? {
-                singleSofabeds: adam.singleSofabeds,
-                doubleSofabeds: adam.doubleSofabeds,
-              }
-            : Number.isInteger(logisticCode) && logisticCode > 0
-              ? (sofabedsByLogisticCode.get(logisticCode) ?? null)
-              : null;
-        return mapStop(row, adam, sofabeds, premium);
-      }),
+      stops: rows.map((row) => mapHousekeepingStop(row, keyTypeLabels, ymd)),
     };
   }
 
   async markStopStarted(
     session: DriverAuthSession,
-    timelineId: number,
+    stopId: number,
   ): Promise<DriverStopStatusResponse> {
-    const taskId = await this.resolveOwnedTaskId(session, timelineId);
+    const taskId = await this.resolveOwnedTaskId(session, stopId);
     const existing = await this.prisma.client.appHousekeeping.findFirst({
       where: { id: taskId, deleted: 0, deletedAt: null },
-      select: { id: true, realStart: true, realEnd: true, lgPaused: true },
+      select: { id: true, realStart: true, realEnd: true, lgPaused: true, checkout: true },
     });
 
     if (!existing) {
@@ -187,31 +153,38 @@ export class DriverTimelineService {
 
     const alreadyActive = Boolean(existing.realStart) && !isLgPaused(existing.lgPaused);
     if (alreadyActive) {
-      return toStopStatusResponse(timelineId, taskId, existing.realStart, null, false);
+      return toStopStatusResponse(taskId, existing.realStart, null, false, formatDateYmd(existing.checkout));
     }
 
     await this.pauseOtherActiveTasksForDriver(session.driverId, taskId);
 
-    const realStart = existing.realStart ?? new Date();
-    await this.prisma.client.appHousekeeping.update({
-      where: { id: taskId },
-      data: {
-        realStart,
-        lgPaused: 0,
-      },
-    });
+    const realStart = existing.realStart ?? nowAsTimeDate();
+    if (!existing.realStart) {
+      await this.prisma.client.appHousekeeping.update({
+        where: { id: taskId },
+        data: {
+          realStart,
+          lgPaused: 0,
+        },
+      });
+    } else {
+      await this.prisma.client.appHousekeeping.update({
+        where: { id: taskId },
+        data: { lgPaused: 0 },
+      });
+    }
 
-    return toStopStatusResponse(timelineId, taskId, realStart, null, false);
+    return toStopStatusResponse(taskId, realStart, null, false, formatDateYmd(existing.checkout));
   }
 
   async markStopFinished(
     session: DriverAuthSession,
-    timelineId: number,
+    stopId: number,
   ): Promise<DriverStopStatusResponse> {
-    const taskId = await this.resolveOwnedTaskId(session, timelineId);
+    const taskId = await this.resolveOwnedTaskId(session, stopId);
     const existing = await this.prisma.client.appHousekeeping.findFirst({
       where: { id: taskId, deleted: 0, deletedAt: null },
-      select: { id: true, realStart: true, realEnd: true, lgPaused: true },
+      select: { id: true, realStart: true, realEnd: true, lgPaused: true, checkout: true },
     });
 
     if (!existing) {
@@ -226,7 +199,7 @@ export class DriverTimelineService {
       throw new BadRequestException("Resume the task before finishing it.");
     }
 
-    const realEnd = existing.realEnd ?? new Date();
+    const realEnd = existing.realEnd ?? nowAsTimeDate();
     if (!existing.realEnd) {
       await this.prisma.client.appHousekeeping.update({
         where: { id: taskId },
@@ -234,17 +207,17 @@ export class DriverTimelineService {
       });
     }
 
-    return toStopStatusResponse(timelineId, taskId, existing.realStart, realEnd, false);
+    return toStopStatusResponse(taskId, existing.realStart, realEnd, false, formatDateYmd(existing.checkout));
   }
 
   async markStopReopened(
     session: DriverAuthSession,
-    timelineId: number,
+    stopId: number,
   ): Promise<DriverStopStatusResponse> {
-    const taskId = await this.resolveOwnedTaskId(session, timelineId);
+    const taskId = await this.resolveOwnedTaskId(session, stopId);
     const existing = await this.prisma.client.appHousekeeping.findFirst({
       where: { id: taskId, deleted: 0, deletedAt: null },
-      select: { id: true, realStart: true, realEnd: true },
+      select: { id: true, realStart: true, realEnd: true, checkout: true },
     });
 
     if (!existing) {
@@ -257,58 +230,38 @@ export class DriverTimelineService {
 
     await this.pauseOtherActiveTasksForDriver(session.driverId, taskId);
 
-    const realStart = new Date();
+    const realStart = nowAsTimeDate();
     await this.prisma.client.appHousekeeping.update({
       where: { id: taskId },
       data: { realStart, realEnd: null, lgPaused: 0 },
     });
 
-    return toStopStatusResponse(timelineId, taskId, realStart, null, false);
+    return toStopStatusResponse(taskId, realStart, null, false, formatDateYmd(existing.checkout));
   }
 
-  private async resolveOwnedTaskId(session: DriverAuthSession, timelineId: number): Promise<number> {
-    const result = await this.logisticsDb.query<{ task_id: number | null }>(
-      `SELECT task_id
-       FROM lg_timeline
-       WHERE id = $1
-         AND driver_id = $2
-       LIMIT 1`,
-      [timelineId, session.driverId],
-    );
+  private async resolveOwnedTaskId(session: DriverAuthSession, stopId: number): Promise<number> {
+    const row = await this.prisma.client.appHousekeeping.findFirst({
+      where: {
+        id: stopId,
+        drivenByUs: session.driverId,
+        deleted: 0,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
 
-    const taskId = toNullableInt(result.rows[0]?.task_id);
-    if (taskId === null || taskId <= 0) {
+    if (!row) {
       throw new NotFoundException("Timeline stop not found.");
     }
 
-    return taskId;
+    return row.id;
   }
 
   private async pauseOtherActiveTasksForDriver(driverId: number, activeTaskId: number): Promise<void> {
-    const result = await this.logisticsDb.query<{ task_id: number | null }>(
-      `SELECT DISTINCT task_id
-       FROM lg_timeline
-       WHERE driver_id = $1
-         AND task_id IS NOT NULL
-         AND task_id <> $2`,
-      [driverId, activeTaskId],
-    );
-
-    const otherTaskIds = [
-      ...new Set(
-        result.rows
-          .map((row) => toNullableInt(row.task_id))
-          .filter((id): id is number => id !== null && id > 0),
-      ),
-    ];
-
-    if (otherTaskIds.length === 0) {
-      return;
-    }
-
     await this.prisma.client.appHousekeeping.updateMany({
       where: {
-        id: { in: otherTaskIds },
+        drivenByUs: driverId,
+        id: { not: activeTaskId },
         deleted: 0,
         deletedAt: null,
         realStart: { not: null },
@@ -343,132 +296,6 @@ export class DriverTimelineService {
     return { name, lastname };
   }
 
-  private async loadAdamStopContext(taskIds: number[]): Promise<Map<number, AdamStopContext>> {
-    const uniqueTaskIds = [...new Set(taskIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
-    if (uniqueTaskIds.length === 0) {
-      return new Map();
-    }
-
-    const [rows, keyTypeLabels] = await Promise.all([
-      this.prisma.client.appHousekeeping.findMany({
-        where: {
-          id: { in: uniqueTaskIds },
-          deleted: 0,
-          deletedAt: null,
-        },
-        select: {
-          id: true,
-          sequence: true,
-          startTime: true,
-          endTime: true,
-          drivenByUs: true,
-          lgSequence: true,
-          lgTravelTime: true,
-          lgStartTime: true,
-          lgEndTime: true,
-          lgOperation: true,
-          notes: true,
-          realStart: true,
-          realEnd: true,
-          lgPaused: true,
-          checkout: true,
-          checkoutTime: true,
-          checkin: true,
-          checkinTime: true,
-          cleanedByUs: true,
-          structure: {
-            select: {
-              logisticCode: true,
-              address1: true,
-              address2: true,
-              lat: true,
-              lng: true,
-              premium: true,
-              singleSofabeds: true,
-              doubleSofabeds: true,
-              structureKeys: true,
-              customer: {
-                select: {
-                  name: true,
-                  nameFrontend: true,
-                },
-              },
-            },
-          },
-          activity: {
-            select: {
-              langs: {
-                where: { languageId: 1 },
-                select: { name: true },
-                take: 1,
-              },
-            },
-          },
-          assignedUser: {
-            select: {
-              id: true,
-              name: true,
-              lastname: true,
-              mobile: true,
-            },
-          },
-        },
-      }),
-      this.loadStructureKeyTypeLabels(),
-    ]);
-
-    const map = new Map<number, AdamStopContext>();
-    for (const row of rows) {
-      if (map.has(row.id)) {
-        continue;
-      }
-
-      const structure = row.structure;
-      const customerName =
-        structure.customer.nameFrontend?.trim() || structure.customer.name?.trim() || null;
-      const cleaner = row.assignedUser;
-      const cleanerAlias = formatPersonName(cleaner?.name, cleaner?.lastname);
-      const cleanerMobile = cleaner?.mobile?.trim() || null;
-      const activityName = row.activity?.langs[0]?.name?.trim() || null;
-      const lgSequence = toNullableInt(row.lgSequence);
-      const drivenByUs = toNullableInt(row.drivenByUs);
-
-      map.set(row.id, {
-        logisticCode: toNullableInt(structure.logisticCode),
-        customerName,
-        address: formatStructureAddress(structure),
-        customerNote: row.notes?.trim() || null,
-        cleanerAlias,
-        cleanerSequence: toNullableInt(row.sequence),
-        cleanerMobile,
-        cleanerStartTime: formatTime(row.startTime),
-        cleanerEndTime: formatTime(row.endTime),
-        singleSofabeds: toNullableInt(structure.singleSofabeds),
-        doubleSofabeds: toNullableInt(structure.doubleSofabeds),
-        checkinDate: formatDateYmd(row.checkin),
-        checkoutDate: formatDateYmd(row.checkout),
-        checkinTime: formatTime(row.checkinTime),
-        checkoutTime: formatTime(row.checkoutTime),
-        logisticsTaskKind: row.lgOperation?.trim() || null,
-        straordinaria: isStraordinariaActivity(activityName),
-        premium: Boolean(structure.premium),
-        lat: toCoordinate(structure.lat),
-        lng: toCoordinate(structure.lng),
-        sequence: lgSequence !== null && lgSequence > 0 ? lgSequence : null,
-        startTime: formatTime(row.lgStartTime),
-        endTime: formatTime(row.lgEndTime),
-        travelTime: toNullableInt(row.lgTravelTime),
-        drivenByUs: drivenByUs !== null && drivenByUs > 0 ? drivenByUs : null,
-        realStart: toIsoOrNull(row.realStart),
-        realEnd: toIsoOrNull(row.realEnd),
-        lgPaused: isLgPaused(row.lgPaused),
-        accessBundles: parseStructureAccessBundles(structure.structureKeys, keyTypeLabels),
-      });
-    }
-
-    return map;
-  }
-
   private async loadStructureKeyTypeLabels(): Promise<Map<number, string>> {
     const rows = await this.prisma.client.appStructureKey.findMany({
       where: { active: 1 },
@@ -486,156 +313,119 @@ export class DriverTimelineService {
     }
     return map;
   }
-
-  private async loadPremiumByTaskId(ymd: string, taskIds: number[]): Promise<Map<number, boolean>> {
-    const uniqueTaskIds = [...new Set(taskIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
-    if (uniqueTaskIds.length === 0) {
-      return new Map();
-    }
-
-    const result = await this.logisticsDb.query<{ task_id: number; premium: boolean | null }>(
-      `SELECT DISTINCT ON (dac.task_id)
-         dac.task_id,
-         COALESCE(dac.premium, false) AS premium
-       FROM daily_assignments_current dac
-       WHERE dac.work_date = $1::date
-         AND dac.task_id = ANY($2::int[])
-       ORDER BY dac.task_id, dac.id ASC`,
-      [ymd, uniqueTaskIds],
-    );
-
-    const map = new Map<number, boolean>();
-    for (const row of result.rows) {
-      const taskId = Number(row.task_id);
-      if (!Number.isInteger(taskId) || taskId <= 0) {
-        continue;
-      }
-      map.set(taskId, Boolean(row.premium));
-    }
-
-    return map;
-  }
-
-  private async loadSofabedsByLogisticCode(logisticCodes: number[]): Promise<Map<number, SofabedContext>> {
-    const uniqueCodes = [
-      ...new Set(logisticCodes.map((code) => Number(code)).filter((code) => Number.isInteger(code) && code > 0)),
-    ];
-    if (uniqueCodes.length === 0) {
-      return new Map();
-    }
-
-    const rows = await this.prisma.client.appStructure.findMany({
-      where: {
-        logisticCode: { in: uniqueCodes },
-      },
-      select: {
-        logisticCode: true,
-        singleSofabeds: true,
-        doubleSofabeds: true,
-      },
-    });
-
-    const map = new Map<number, SofabedContext>();
-    for (const row of rows) {
-      const logisticCode = toNullableInt(row.logisticCode);
-      if (logisticCode === null || map.has(logisticCode)) {
-        continue;
-      }
-
-      const singleSofabeds = toNullableInt(row.singleSofabeds);
-      const doubleSofabeds = toNullableInt(row.doubleSofabeds);
-      if (singleSofabeds === null && doubleSofabeds === null) {
-        continue;
-      }
-
-      map.set(logisticCode, { singleSofabeds, doubleSofabeds });
-    }
-
-    return map;
-  }
 }
 
-function mapVehicle(
-  raw: LgDriverVehicleAssignment | string | null,
-): DriverTodayRouteResponse["driver"]["vehicle"] {
-  if (!raw) {
-    return null;
-  }
-
-  const assignment =
-    typeof raw === "string" ? (JSON.parse(raw) as LgDriverVehicleAssignment) : raw;
-
-  const id = toNullableInt(assignment.vehicle_id);
-  const name = assignment.vehicle_name ?? null;
-  const pmsCode = assignment.vehicle_pms_code ?? null;
-  const taskId = toNullableInt(assignment.vehicle_task_id);
-
-  if (id === null && !name && !pmsCode && taskId === null) {
-    return null;
-  }
-
-  return {
-    id,
-    name,
-    pmsCode,
-    taskId,
+type HousekeepingStopRow = {
+  id: number;
+  sequence: number | null;
+  startTime: Date | null;
+  endTime: Date | null;
+  drivenByUs: number;
+  lgSequence: number;
+  lgTravelTime: number | null;
+  lgStartTime: Date | null;
+  lgEndTime: Date | null;
+  lgOperation: string | null;
+  notes: string | null;
+  realStart: Date | null;
+  realEnd: Date | null;
+  lgPaused: number;
+  checkout: Date | null;
+  checkoutTime: string | null;
+  checkin: Date | null;
+  checkinTime: string | null;
+  cleanedByUs: number | null;
+  structure: {
+    logisticCode: number | null;
+    address1: string | null;
+    address2: string | null;
+    lat: string | null;
+    lng: string | null;
+    premium: number | null;
+    singleSofabeds: number | null;
+    doubleSofabeds: number | null;
+    structureKeys: string | null;
+    customer: {
+      name: string | null;
+      nameFrontend: string | null;
+    };
   };
-}
+  activity: {
+    langs: Array<{ name: string | null }>;
+  } | null;
+  assignedUser: {
+    id: number;
+    name: string | null;
+    lastname: string | null;
+    mobile: string | null;
+  } | null;
+};
 
-function mapStop(
-  row: LgTimelineRow,
-  adam: AdamStopContext | null,
-  sofabeds: SofabedContext | null,
-  premium: boolean,
+function mapHousekeepingStop(
+  row: HousekeepingStopRow,
+  keyTypeLabels: Map<number, string>,
+  ymd: string,
 ): DriverTimelineStop {
+  const structure = row.structure;
+  const customerName =
+    structure.customer.nameFrontend?.trim() || structure.customer.name?.trim() || null;
+  const cleaner = row.assignedUser;
+  const cleanerAlias = formatPersonName(cleaner?.name, cleaner?.lastname);
+  const activityName = row.activity?.langs[0]?.name?.trim() || null;
+  const lgSequence = toNullableInt(row.lgSequence);
+  const checkoutYmd = formatDateYmd(row.checkout) ?? ymd;
+  const realStartIso = timeFieldToIso(row.realStart, checkoutYmd);
+  const realEndIso = timeFieldToIso(row.realEnd, checkoutYmd);
+
   return {
     id: row.id,
-    sequence: adam?.sequence ?? row.sequence,
-    startTime: adam?.startTime ?? formatTime(row.start_time),
-    endTime: adam?.endTime ?? formatTime(row.end_time),
-    address: adam?.address ?? row.address,
-    customerName: adam?.customerName ?? row.customer_name,
-    logisticCode: adam?.logisticCode ?? row.logistic_code,
-    logisticsTaskKind: adam?.logisticsTaskKind ?? row.logistics_task_kind,
-    straordinaria: adam ? adam.straordinaria : Boolean(row.straordinaria),
-    premium,
-    customerNote: adam?.customerNote ?? null,
-    cleanerAlias: adam?.cleanerAlias ?? null,
-    cleanerSequence: adam?.cleanerSequence ?? null,
-    cleanerMobile: adam?.cleanerMobile ?? null,
-    cleanerStartTime: adam?.cleanerStartTime ?? null,
-    cleanerEndTime: adam?.cleanerEndTime ?? null,
-    singleSofabeds: sofabeds?.singleSofabeds ?? null,
-    doubleSofabeds: sofabeds?.doubleSofabeds ?? null,
-    accessBundles: adam?.accessBundles ?? [],
-    lat: adam?.lat ?? toNumberOrNull(row.lat),
-    lng: adam?.lng ?? toNumberOrNull(row.lng),
-    travelTime: adam?.travelTime ?? toNumberOrNull(row.travel_time),
-    checkinDate: adam?.checkinDate ?? formatDateYmd(row.checkin_date),
-    checkoutDate: adam?.checkoutDate ?? formatDateYmd(row.checkout_date),
-    checkinTime: adam?.checkinTime ?? formatTime(row.checkin_time),
-    checkoutTime: adam?.checkoutTime ?? formatTime(row.checkout_time),
-    taskId: toNumberOrNull(row.task_id),
-    isStarted: Boolean(adam?.realStart),
-    isPaused: Boolean(adam?.realStart) && !adam?.realEnd && Boolean(adam?.lgPaused),
-    isFinished: Boolean(adam?.realEnd),
-    realStart: adam?.realStart ?? null,
-    realEnd: adam?.realEnd ?? null,
+    sequence: lgSequence !== null && lgSequence > 0 ? lgSequence : null,
+    startTime: formatTime(row.lgStartTime),
+    endTime: formatTime(row.lgEndTime),
+    address: formatStructureAddress(structure),
+    customerName,
+    logisticCode: toNullableInt(structure.logisticCode),
+    logisticsTaskKind: row.lgOperation?.trim() || null,
+    straordinaria: isStraordinariaActivity(activityName),
+    premium: Boolean(structure.premium),
+    customerNote: row.notes?.trim() || null,
+    cleanerAlias,
+    cleanerSequence: toNullableInt(row.sequence),
+    cleanerMobile: cleaner?.mobile?.trim() || null,
+    cleanerStartTime: formatTime(row.startTime),
+    cleanerEndTime: formatTime(row.endTime),
+    singleSofabeds: toNullableInt(structure.singleSofabeds),
+    doubleSofabeds: toNullableInt(structure.doubleSofabeds),
+    accessBundles: parseStructureAccessBundles(structure.structureKeys, keyTypeLabels),
+    lat: toCoordinate(structure.lat),
+    lng: toCoordinate(structure.lng),
+    travelTime: toNullableInt(row.lgTravelTime),
+    checkinDate: formatDateYmd(row.checkin),
+    checkoutDate: checkoutYmd,
+    checkinTime: formatTime(row.checkinTime),
+    checkoutTime: formatTime(row.checkoutTime),
+    taskId: row.id,
+    isStarted: Boolean(realStartIso),
+    isPaused: Boolean(realStartIso) && !realEndIso && isLgPaused(row.lgPaused),
+    isFinished: Boolean(realEndIso),
+    realStart: realStartIso,
+    realEnd: realEndIso,
   };
 }
 
 function toStopStatusResponse(
-  timelineId: number,
   taskId: number,
   realStart: Date | string | null,
   realEnd: Date | string | null,
   lgPaused: boolean,
+  checkoutYmd: string | null,
 ): DriverStopStatusResponse {
-  const startIso = toIsoOrNull(realStart);
-  const endIso = toIsoOrNull(realEnd);
+  const day = checkoutYmd && isValidYmd(checkoutYmd) ? checkoutYmd : getTodayInRomeYmd();
+  const startIso = timeFieldToIso(realStart, day);
+  const endIso = timeFieldToIso(realEnd, day);
   return {
     ok: true,
-    timelineId,
+    timelineId: taskId,
     taskId,
     isStarted: Boolean(startIso),
     isPaused: Boolean(startIso) && !endIso && lgPaused,
@@ -649,15 +439,29 @@ function isLgPaused(value: number | boolean | null | undefined): boolean {
   return value === true || value === 1;
 }
 
-function toIsoOrNull(value: Date | string | null | undefined): string | null {
-  if (!value) {
+/** Build a Date whose UTC clock equals current Europe/Rome time (for MySQL TIME columns). */
+function nowAsTimeDate(): Date {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: ROME_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  const second = Number(parts.find((part) => part.type === "second")?.value ?? 0);
+  return new Date(Date.UTC(1970, 0, 1, hour, minute, second));
+}
+
+function timeFieldToIso(value: Date | string | null | undefined, ymd: string): string | null {
+  const time = formatTime(value);
+  if (!time) {
     return null;
   }
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value.toISOString();
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  const [year, month, day] = ymd.split("-").map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0)).toISOString();
 }
 
 function formatStructureAddress(structure: {
@@ -853,8 +657,4 @@ function toNullableInt(value: unknown): number | null {
 
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? number : null;
-}
-
-function toNumberOrNull(value: number | string | null | undefined): number | null {
-  return toNullableInt(value);
 }

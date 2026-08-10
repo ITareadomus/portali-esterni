@@ -249,8 +249,8 @@ model AppHousekeeping {
   lgOperation        String?                 @map("lg_operation") @db.VarChar(10)
   startTime          DateTime?               @map("start_time") @db.Time(0)
   endTime            DateTime?               @map("end_time") @db.Time(0)
-  realStart          DateTime?               @map("lg_real_start")
-  realEnd            DateTime?               @map("lg_real_end")
+  realStart          DateTime?               @map("lg_real_start") @db.Time(0)
+  realEnd            DateTime?               @map("lg_real_end") @db.Time(0)
   lgPaused           Int                     @default(0) @map("lg_paused") @db.TinyInt
   startwork          Int?                    @default(0) @db.TinyInt
   startworkAt        DateTime?               @map("startwork_at")

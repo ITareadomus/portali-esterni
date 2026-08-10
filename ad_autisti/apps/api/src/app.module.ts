@@ -7,7 +7,6 @@ import { CustomerActivitiesModule } from "./customer-activities/customer-activit
 import { DriverAuthModule } from "./driver-auth/driver-auth.module";
 import { DriverTimelineModule } from "./driver-timeline/driver-timeline.module";
 import { HealthModule } from "./health/health.module";
-import { LogisticsDbModule } from "./logistics-db/logistics-db.module";
 import { PlatformContextModule } from "./platform-context/platform-context.module";
 
 const apiEnvFilePath = [join(__dirname, "../.env.local"), join(__dirname, "../.env")];
@@ -18,7 +17,6 @@ const apiEnvFilePath = [join(__dirname, "../.env.local"), join(__dirname, "../.e
       isGlobal: true,
       envFilePath: apiEnvFilePath,
     }),
-    LogisticsDbModule,
     HealthModule,
     AuthModule,
     CustomerAuthModule,
