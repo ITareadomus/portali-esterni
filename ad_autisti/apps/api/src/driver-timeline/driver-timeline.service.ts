@@ -582,17 +582,29 @@ function mapLgOperation(value: string | null | undefined): string | null {
     return null;
   }
 
-  switch (trimmed) {
-    case "1":
-      return "delivery";
-    case "2":
-      return "pickup";
-    case "3":
-      return "d&p";
-    default:
-      // Keep legacy text values (delivery / pickup / d&p) if already stored as labels.
-      return trimmed;
+  const compact = trimmed
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "")
+    .replace(/\//g, "");
+
+  if (trimmed === "1" || compact === "d" || compact === "delivery" || compact === "consegna") {
+    return "delivery";
   }
+  if (trimmed === "2" || compact === "p" || compact === "pickup" || compact === "ritiro") {
+    return "pickup";
+  }
+  if (
+    trimmed === "3" ||
+    compact === "d&p" ||
+    compact === "dp" ||
+    compact === "d+p" ||
+    (compact.includes("delivery") && compact.includes("pickup")) ||
+    (compact.includes("consegna") && compact.includes("ritiro"))
+  ) {
+    return "d&p";
+  }
+
+  return trimmed;
 }
 
 function isStraordinariaActivity(activityName: string | null): boolean {

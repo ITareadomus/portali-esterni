@@ -889,11 +889,15 @@ function TaskKindBadge({ kind }: { kind: string }) {
     .replace(/\//g, "/");
   const compact = normalized.replace(/\//g, "");
   const isDeliveryPickupShortcut =
-    compact === "d&p" || compact === "dp" || compact === "d+p" || normalized === "d&p";
+    compact === "3" ||
+    compact === "d&p" ||
+    compact === "dp" ||
+    compact === "d+p" ||
+    normalized === "d&p";
   const label = formatTaskKind(kind);
 
-  const isDelivery = compact === "delivery" || compact === "consegna" || compact === "d";
-  const isPickup = compact === "pickup" || compact === "ritiro" || compact === "p";
+  const isDelivery = compact === "1" || compact === "delivery" || compact === "consegna" || compact === "d";
+  const isPickup = compact === "2" || compact === "pickup" || compact === "ritiro" || compact === "p";
   const isBoth =
     isDeliveryPickupShortcut ||
     (compact.includes("delivery") && compact.includes("pickup")) ||
@@ -1137,13 +1141,13 @@ function formatTaskKind(value: string): string {
     .replace(/[\s_-]+/g, "")
     .replace(/\//g, "");
 
-  if (compact === "d&p" || compact === "dp" || compact === "d+p") {
+  if (compact === "3" || compact === "d&p" || compact === "dp" || compact === "d+p") {
     return "Delivery / Pickup";
   }
-  if (compact === "d" || compact === "delivery" || compact === "consegna") {
+  if (compact === "1" || compact === "d" || compact === "delivery" || compact === "consegna") {
     return "Delivery";
   }
-  if (compact === "p" || compact === "pickup" || compact === "ritiro") {
+  if (compact === "2" || compact === "p" || compact === "pickup" || compact === "ritiro") {
     return "Pickup";
   }
 
