@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 type DriverLoginActionState = {
-  email: string;
+  code: string;
   message: string | null;
   remember: boolean;
 };
@@ -19,7 +19,7 @@ type CookieOptions = {
 };
 
 const initialDriverLoginState: DriverLoginActionState = {
-  email: "",
+  code: "",
   message: null,
   remember: false,
 };
@@ -107,9 +107,9 @@ function parseSetCookieHeader(header: string): { name: string; options: CookieOp
   };
 }
 
-function failedState(email: string, remember: boolean, message: string): DriverLoginActionState {
+function failedState(code: string, remember: boolean, message: string): DriverLoginActionState {
   return {
-    email,
+    code,
     message,
     remember,
   };
@@ -119,19 +119,19 @@ export async function loginDriverAction(
   _state: DriverLoginActionState,
   formData: FormData,
 ): Promise<DriverLoginActionState> {
-  const email = String(formData.get("email") ?? "").trim();
+  const code = String(formData.get("code") ?? "").trim().toUpperCase();
   const password = String(formData.get("password") ?? "");
   const remember = formData.get("remember") === "on";
   let authenticated = false;
 
-  if (!email || !password) {
-    return failedState(email, remember, "Controlla i dati inseriti.");
+  if (!code || !password) {
+    return failedState(code, remember, "Controlla i dati inseriti.");
   }
 
   try {
     const response = await fetch(new URL("driver-auth/login", getApiBaseUrl()), {
       body: JSON.stringify({
-        email,
+        code,
         password,
         remember,
       }),
@@ -144,15 +144,21 @@ export async function loginDriverAction(
     });
 
     if (response.status === 401) {
-      return failedState(email, remember, INVALID_USER_MESSAGE);
+      const payload = (await response.json().catch(() => null)) as {
+        message?: string | string[];
+      } | null;
+      const rawMessage = Array.isArray(payload?.message) ? payload?.message[0] : payload?.message;
+      const message =
+        typeof rawMessage === "string" && rawMessage.trim() ? rawMessage.trim() : INVALID_USER_MESSAGE;
+      return failedState(code, remember, message);
     }
 
     if (response.status === 400) {
-      return failedState(email, remember, "Controlla i dati inseriti.");
+      return failedState(code, remember, "Controlla i dati inseriti.");
     }
 
     if (!response.ok) {
-      return failedState(email, remember, "Accesso non riuscito. Riprova.");
+      return failedState(code, remember, "Accesso non riuscito. Riprova.");
     }
 
     const cookieStore = await cookies();
@@ -165,12 +171,12 @@ export async function loginDriverAction(
     }
 
     if (setCookieHeaders.length === 0) {
-      return failedState(email, remember, "Accesso non riuscito. Riprova.");
+      return failedState(code, remember, "Accesso non riuscito. Riprova.");
     }
 
     authenticated = true;
   } catch {
-    return failedState(email, remember, "Accesso non riuscito. Riprova.");
+    return failedState(code, remember, "Accesso non riuscito. Riprova.");
   }
 
   if (authenticated) {

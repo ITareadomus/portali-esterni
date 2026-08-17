@@ -1,0 +1,28 @@
+{
+  "vans": [
+    {
+      "code": "ADP01",
+      "vehicleId": 2114,
+      "name": "ADP01 SCUDO GT408NZ",
+      "plate": "GT408NZ",
+      "model": "SCUDO",
+      "password": "1960"
+    },
+    {
+      "code": "ADP02",
+      "vehicleId": 1963,
+      "name": "ADP02 SCUDO GR794SN",
+      "plate": "GR794SN",
+      "model": "SCUDO",
+      "password": "1960"
+    },
+    {
+      "code": "ADP03",
+      "vehicleId": 2065,
+      "name": "ADP03 SCUDO GR792SN",
+      "plate": "GR792SN",
+      "model": "SCUDO",
+      "password": "1960"
+    }
+  ]
+}

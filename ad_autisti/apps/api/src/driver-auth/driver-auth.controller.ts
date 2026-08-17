@@ -32,9 +32,15 @@ export class DriverAuthController {
       example: {
         ok: true,
         user: {
-          id: 737,
-          name: "Mario",
-          lastname: "Rossi",
+          id: 1133,
+          name: "ADP01",
+          lastname: null,
+          vehicle: {
+            id: 2114,
+            code: "ADP01",
+            name: "ADP01 SCUDO GT408NZ",
+            pmsCode: "GT408NZ",
+          },
         },
       },
     },
@@ -60,9 +66,15 @@ export class DriverAuthController {
       example: {
         authenticated: true,
         user: {
-          id: 737,
-          name: "CHRISTOPHER JASON",
-          lastname: "SANTOS",
+          id: 1133,
+          name: "ADP01",
+          lastname: null,
+          vehicle: {
+            id: 2114,
+            code: "ADP01",
+            name: "ADP01 SCUDO GT408NZ",
+            pmsCode: "GT408NZ",
+          },
         },
       },
     },

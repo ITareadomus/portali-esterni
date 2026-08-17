@@ -1,6 +1,6 @@
 export const THEME_COOKIE_NAME = "adam_theme";
 export const THEME_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
-export const DEFAULT_THEME = "light";
+export const DEFAULT_THEME = "dark";
 
 export const THEMES = ["light", "dark"] as const;
 

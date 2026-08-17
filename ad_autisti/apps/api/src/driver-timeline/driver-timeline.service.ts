@@ -6,7 +6,8 @@ import type {
   DriverTimelineStop,
   DriverTodayRouteResponse,
 } from "@adam/types";
-import type { DriverAuthSession } from "../driver-auth/driver-auth.service";
+import { DriverAuthService, type DriverAuthSession } from "../driver-auth/driver-auth.service";
+import { DriverVehicleAssignmentService } from "../driver-auth/driver-vehicle-assignment.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 const ROME_TIME_ZONE = "Europe/Rome";
@@ -23,6 +24,7 @@ const housekeepingStopSelect = {
   startTime: true,
   endTime: true,
   drivenByUs: true,
+  lgVehicle: true,
   lgSequence: true,
   lgTravelTime: true,
   lgStartTime: true,
@@ -71,6 +73,7 @@ const housekeepingStopSelect = {
       name: true,
       lastname: true,
       mobile: true,
+      phone: true,
     },
   },
 } as const;
@@ -80,6 +83,10 @@ export class DriverTimelineService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Inject(DriverVehicleAssignmentService)
+    private readonly vehicleAssignments: DriverVehicleAssignmentService,
+    @Inject(DriverAuthService)
+    private readonly driverAuth: DriverAuthService,
   ) {}
 
   async getTodayForDriver(
@@ -87,47 +94,86 @@ export class DriverTimelineService {
     options: { date?: string } = {},
   ): Promise<DriverTodayRouteResponse> {
     const ymd = options.date && isValidYmd(options.date) ? options.date : getTodayInRomeYmd();
-    const driverProfile = await this.loadDriverProfile(session.driverId);
+    const vehicle = this.resolveSessionVehicle(session);
     const keyTypeLabels = await this.loadStructureKeyTypeLabels();
 
-    // Compare DATE columns as YMD strings to avoid timezone shifts with JS Date.
-    const idRows = await this.prisma.client.$queryRaw<Array<{ id: number }>>`
-      SELECT id
-      FROM app_housekeeping
-      WHERE driven_by_us = ${session.driverId}
-        AND (
-          checkout = ${ymd}
-          OR checkin = ${ymd}
-        )
-        AND IFNULL(deleted, 0) = 0
-        AND deleted_at IS NULL
-      ORDER BY lg_sequence ASC, id ASC
-    `;
+    let driverId: number | null = null;
+    let taskIds: number[] = [];
 
-    const taskIds = idRows
-      .map((row) => Number(row.id))
-      .filter((id) => Number.isInteger(id) && id > 0);
+    if (session.vehicleId) {
+      taskIds = await this.vehicleAssignments.listStopIdsForVehicle(session.vehicleId, ymd);
+      driverId = await this.vehicleAssignments.resolveDriverIdForVehicle(session.vehicleId, ymd);
+    } else if (session.driverId > 0) {
+      driverId = session.driverId;
+      const idRows = await this.prisma.client.$queryRaw<Array<{ id: number }>>`
+        SELECT id
+        FROM app_housekeeping
+        WHERE driven_by_us = ${driverId}
+          AND (
+            checkout = ${ymd}
+            OR checkin = ${ymd}
+          )
+          AND IFNULL(deleted, 0) = 0
+          AND deleted_at IS NULL
+        ORDER BY lg_sequence ASC, id ASC
+      `;
+      taskIds = idRows
+        .map((row) => Number(row.id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+    }
 
-    const rows =
-      taskIds.length === 0
-        ? []
-        : await this.prisma.client.appHousekeeping.findMany({
-            where: { id: { in: taskIds } },
-            orderBy: [{ lgSequence: "asc" }, { id: "asc" }],
-            select: housekeepingStopSelect,
-          });
+    if (taskIds.length === 0) {
+      return {
+        date: { ymd },
+        driver: {
+          id: driverId ?? 0,
+          name: vehicle?.code ?? null,
+          lastname: null,
+          startTime: null,
+          endTime: null,
+          available: null,
+          selected: false,
+          vehicle: vehicle
+            ? {
+                id: vehicle.id,
+                name: vehicle.name,
+                pmsCode: vehicle.pmsCode,
+                taskId: null,
+              }
+            : null,
+        },
+        stops: [],
+      };
+    }
+
+    const driverLabel = vehicle
+      ? { name: vehicle.code, lastname: null as string | null }
+      : await this.loadDriverProfile(driverId!);
+
+    const rows = await this.prisma.client.appHousekeeping.findMany({
+      where: { id: { in: taskIds } },
+      orderBy: [{ lgSequence: "asc" }, { id: "asc" }],
+      select: housekeepingStopSelect,
+    });
 
     return {
       date: { ymd },
       driver: {
-        id: session.driverId,
-        name: driverProfile.name,
-        lastname: driverProfile.lastname,
+        id: driverId ?? 0,
+        name: driverLabel.name,
+        lastname: driverLabel.lastname,
         startTime: null,
         endTime: null,
         available: null,
         selected: rows.length > 0,
-        vehicle: null,
+        vehicle: vehicle
+          ? {
+              id: vehicle.id,
+              name: vehicle.name,
+              pmsCode: vehicle.pmsCode,
+              taskId: null,
+            }
+          : null,
       },
       stops: rows.map((row) => mapHousekeepingStop(row, keyTypeLabels, ymd)),
     };
@@ -137,7 +183,7 @@ export class DriverTimelineService {
     session: DriverAuthSession,
     stopId: number,
   ): Promise<DriverStopStatusResponse> {
-    const taskId = await this.resolveOwnedTaskId(session, stopId);
+    const { taskId, driverId, vehicleId } = await this.resolveOwnedTask(session, stopId);
     const existing = await this.prisma.client.appHousekeeping.findFirst({
       where: { id: taskId, deleted: 0, deletedAt: null },
       select: { id: true, realStart: true, realEnd: true, lgPaused: true, checkout: true },
@@ -156,7 +202,11 @@ export class DriverTimelineService {
       return toStopStatusResponse(taskId, existing.realStart, null, false, formatDateYmd(existing.checkout));
     }
 
-    await this.pauseOtherActiveTasksForDriver(session.driverId, taskId);
+    if (vehicleId) {
+      await this.pauseOtherActiveTasksForVehicle(vehicleId, taskId);
+    } else if (driverId > 0) {
+      await this.pauseOtherActiveTasksForDriver(driverId, taskId);
+    }
 
     const realStart = existing.realStart ?? nowAsTimeDate();
     if (!existing.realStart) {
@@ -181,7 +231,7 @@ export class DriverTimelineService {
     session: DriverAuthSession,
     stopId: number,
   ): Promise<DriverStopStatusResponse> {
-    const taskId = await this.resolveOwnedTaskId(session, stopId);
+    const { taskId } = await this.resolveOwnedTask(session, stopId);
     const existing = await this.prisma.client.appHousekeeping.findFirst({
       where: { id: taskId, deleted: 0, deletedAt: null },
       select: { id: true, realStart: true, realEnd: true, lgPaused: true, checkout: true },
@@ -214,7 +264,7 @@ export class DriverTimelineService {
     session: DriverAuthSession,
     stopId: number,
   ): Promise<DriverStopStatusResponse> {
-    const taskId = await this.resolveOwnedTaskId(session, stopId);
+    const { taskId, driverId, vehicleId } = await this.resolveOwnedTask(session, stopId);
     const existing = await this.prisma.client.appHousekeeping.findFirst({
       where: { id: taskId, deleted: 0, deletedAt: null },
       select: { id: true, realStart: true, realEnd: true, checkout: true },
@@ -228,7 +278,11 @@ export class DriverTimelineService {
       throw new BadRequestException("Task is not finished.");
     }
 
-    await this.pauseOtherActiveTasksForDriver(session.driverId, taskId);
+    if (vehicleId) {
+      await this.pauseOtherActiveTasksForVehicle(vehicleId, taskId);
+    } else if (driverId > 0) {
+      await this.pauseOtherActiveTasksForDriver(driverId, taskId);
+    }
 
     const realStart = nowAsTimeDate();
     await this.prisma.client.appHousekeeping.update({
@@ -239,28 +293,96 @@ export class DriverTimelineService {
     return toStopStatusResponse(taskId, realStart, null, false, formatDateYmd(existing.checkout));
   }
 
-  private async resolveOwnedTaskId(session: DriverAuthSession, stopId: number): Promise<number> {
+  private resolveSessionVehicle(session: DriverAuthSession): {
+    id: number;
+    code: string;
+    name: string;
+    pmsCode: string;
+  } | null {
+    if (!session.vehicleId) {
+      return null;
+    }
+
+    const van = this.driverAuth.getVanAccountByVehicleId(session.vehicleId);
+    if (!van) {
+      return {
+        id: session.vehicleId,
+        code: session.vanCode ?? `VAN-${session.vehicleId}`,
+        name: session.vanCode ?? `Veicolo ${session.vehicleId}`,
+        pmsCode: "",
+      };
+    }
+
+    return {
+      id: van.vehicleId,
+      code: van.code,
+      name: van.name,
+      pmsCode: van.pmsCode,
+    };
+  }
+
+  private async resolveOwnedTask(
+    session: DriverAuthSession,
+    stopId: number,
+  ): Promise<{ taskId: number; driverId: number; vehicleId: number | null }> {
     const row = await this.prisma.client.appHousekeeping.findFirst({
       where: {
         id: stopId,
-        drivenByUs: session.driverId,
         deleted: 0,
         deletedAt: null,
       },
-      select: { id: true },
+      select: { id: true, drivenByUs: true, lgVehicle: true, checkout: true, checkin: true },
     });
 
     if (!row) {
       throw new NotFoundException("Timeline stop not found.");
     }
 
-    return row.id;
+    const drivenByUs = Number(row.drivenByUs);
+    const lgVehicle = Number(row.lgVehicle);
+
+    if (session.vehicleId) {
+      if (!Number.isInteger(lgVehicle) || lgVehicle !== session.vehicleId) {
+        throw new NotFoundException("Timeline stop not found.");
+      }
+
+      return {
+        taskId: row.id,
+        driverId: Number.isInteger(drivenByUs) && drivenByUs > 0 ? drivenByUs : 0,
+        vehicleId: session.vehicleId,
+      };
+    }
+
+    if (!Number.isInteger(drivenByUs) || drivenByUs !== session.driverId) {
+      throw new NotFoundException("Timeline stop not found.");
+    }
+
+    return {
+      taskId: row.id,
+      driverId: drivenByUs,
+      vehicleId: Number.isInteger(lgVehicle) && lgVehicle > 0 ? lgVehicle : null,
+    };
   }
 
   private async pauseOtherActiveTasksForDriver(driverId: number, activeTaskId: number): Promise<void> {
     await this.prisma.client.appHousekeeping.updateMany({
       where: {
         drivenByUs: driverId,
+        id: { not: activeTaskId },
+        deleted: 0,
+        deletedAt: null,
+        realStart: { not: null },
+        realEnd: null,
+        lgPaused: 0,
+      },
+      data: { lgPaused: 1 },
+    });
+  }
+
+  private async pauseOtherActiveTasksForVehicle(vehicleId: number, activeTaskId: number): Promise<void> {
+    await this.prisma.client.appHousekeeping.updateMany({
+      where: {
+        lgVehicle: vehicleId,
         id: { not: activeTaskId },
         deleted: 0,
         deletedAt: null,
@@ -321,6 +443,7 @@ type HousekeepingStopRow = {
   startTime: Date | null;
   endTime: Date | null;
   drivenByUs: number;
+  lgVehicle: number;
   lgSequence: number;
   lgTravelTime: number | null;
   lgStartTime: Date | null;
@@ -358,6 +481,7 @@ type HousekeepingStopRow = {
     name: string | null;
     lastname: string | null;
     mobile: string | null;
+    phone: string | null;
   } | null;
 };
 
@@ -391,7 +515,7 @@ function mapHousekeepingStop(
     customerNote: row.notes?.trim() || null,
     cleanerAlias,
     cleanerSequence: toNullableInt(row.sequence),
-    cleanerMobile: cleaner?.mobile?.trim() || null,
+    cleanerMobile: normalizeMobile(cleaner?.mobile) ?? normalizeMobile(cleaner?.phone),
     cleanerStartTime: formatTime(row.startTime),
     cleanerEndTime: formatTime(row.endTime),
     singleSofabeds: toNullableInt(structure.singleSofabeds),
@@ -568,8 +692,16 @@ function isDriverAccessBundle(label: string | null): boolean {
 }
 
 function formatPersonName(name: string | null | undefined, lastname: string | null | undefined): string | null {
-  const full = [name?.trim(), lastname?.trim()].filter(Boolean).join(" ").trim();
+  const full = [name?.trim(), lastname?.trim()].filter(Boolean).join(" ");
   return full || null;
+}
+
+function normalizeMobile(value: unknown): string | null {
+  if (value == null) {
+    return null;
+  }
+  const mobile = String(value).trim();
+  return mobile || null;
 }
 
 function mapLgOperation(value: string | null | undefined): string | null {

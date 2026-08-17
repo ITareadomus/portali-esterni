@@ -1,8 +1,15 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MinLength } from "class-validator";
+import { IsBoolean, IsOptional, IsString, MinLength, ValidateIf } from "class-validator";
 
 export class DriverLoginDto {
-  @IsEmail()
-  email!: string;
+  @ValidateIf((dto: DriverLoginDto) => !dto.email?.trim())
+  @IsString()
+  @MinLength(1)
+  code?: string;
+
+  @ValidateIf((dto: DriverLoginDto) => !dto.code?.trim())
+  @IsString()
+  @MinLength(1)
+  email?: string;
 
   @IsString()
   @MinLength(1)

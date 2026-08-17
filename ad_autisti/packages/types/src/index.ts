@@ -174,14 +174,24 @@ export type PlatformContextResponse = {
 
 export const DRIVER_SESSION_COOKIE_NAME = "adam_driver_session";
 
+export type DriverAuthVehicle = {
+  id: number | null;
+  code: string | null;
+  name: string | null;
+  pmsCode: string | null;
+};
+
 export type DriverAuthUser = {
   id: number;
   name: string | null;
   lastname: string | null;
+  vehicle: DriverAuthVehicle | null;
 };
 
 export type DriverAuthLoginRequest = {
-  email: string;
+  /** Van code (ADP01/ADP02/ADP03) or legacy driver email. */
+  code?: string;
+  email?: string;
   password: string;
   remember?: boolean;
 };

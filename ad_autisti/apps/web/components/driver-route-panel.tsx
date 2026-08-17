@@ -15,8 +15,8 @@ import {
   LogOut,
   MapPinned,
   Navigation,
-  Package,
   Pause,
+  Phone,
   Play,
   RotateCcw,
   Truck,
@@ -48,17 +48,33 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
   const [loggingOut, setLoggingOut] = useState(false);
   const [navHidden, setNavHidden] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
   const lastScrollYRef = useRef(0);
 
   const displayName = useMemo(() => {
-    const fromRoute = [data?.driver.name, data?.driver.lastname].filter(Boolean).join(" ");
-    if (fromRoute) {
-      return fromRoute;
+    const vanCode = user.vehicle?.code?.trim();
+    if (vanCode) {
+      return vanCode.toUpperCase();
     }
 
     const fromSession = [user.name, user.lastname].filter(Boolean).join(" ");
-    return fromSession || `Autista ${user.id}`;
-  }, [data?.driver.lastname, data?.driver.name, user.id, user.lastname, user.name]);
+    return fromSession || "Veicolo";
+  }, [user.lastname, user.name, user.vehicle?.code]);
+
+  const vehicleLabel = useMemo(() => {
+    return (
+      user.vehicle?.name?.trim() ||
+      data?.driver.vehicle?.name?.trim() ||
+      user.vehicle?.pmsCode?.trim() ||
+      data?.driver.vehicle?.pmsCode?.trim() ||
+      null
+    );
+  }, [
+    data?.driver.vehicle?.name,
+    data?.driver.vehicle?.pmsCode,
+    user.vehicle?.name,
+    user.vehicle?.pmsCode,
+  ]);
 
   const loadRoute = useCallback(
     async (mode: LoadMode, date: string) => {
@@ -163,7 +179,6 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
   const stops = data?.stops ?? [];
   const activeDate = selectedDate ?? todayYmd;
   const isToday = activeDate === todayYmd;
-  const vehicleLabel = data?.driver.vehicle?.name?.trim() || null;
   const routeMapsHref = useMemo(() => buildFullRouteMapsHref(stops), [stops]);
 
   return (
@@ -179,6 +194,48 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <div className="relative hidden lg:block">
+              <button
+                aria-label={isToday ? "Scegli data" : `Scegli data (attualmente ${activeDate})`}
+                className={`relative inline-flex size-11 cursor-pointer items-center justify-center rounded-full border transition ${
+                  isToday
+                    ? "border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] text-autisti-muted dark:text-autisti-dark-300"
+                    : "border-autisti-primary/30 bg-autisti-primary/10 text-autisti-primary dark:border-autisti-dark-300/40 dark:bg-autisti-dark-800 dark:text-autisti-dark-100"
+                }`}
+                onClick={() => {
+                  const input = dateInputRef.current;
+                  if (!input) {
+                    return;
+                  }
+                  try {
+                    if (typeof input.showPicker === "function") {
+                      void input.showPicker();
+                      return;
+                    }
+                  } catch {
+                    // Fall through to focus/click for browsers without showPicker.
+                  }
+                  input.focus();
+                  input.click();
+                }}
+                type="button"
+              >
+                <CalendarDays aria-hidden className="size-4" />
+              </button>
+              <input
+                ref={dateInputRef}
+                aria-hidden
+                className="pointer-events-none absolute h-px w-px opacity-0"
+                onChange={(event) => {
+                  if (event.target.value) {
+                    setSelectedDate(event.target.value);
+                  }
+                }}
+                tabIndex={-1}
+                type="date"
+                value={activeDate}
+              />
+            </div>
             <ThemeToggle initialTheme={initialTheme} shape="pillow" tone="autisti" />
             <button
               className="autisti-glass-muted inline-flex size-11 items-center justify-center rounded-full border text-autisti-primary transition hover:bg-autisti-surface-muted focus:outline-none focus:ring-4 focus:ring-autisti-primary/15 disabled:opacity-60 dark:text-autisti-dark-100 dark:hover:bg-autisti-dark-800 dark:focus:ring-autisti-dark-300/20"
@@ -240,7 +297,13 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
           <div className="autisti-glass rounded-lg border px-4 py-10 text-center">
             <MapPinned className="mx-auto size-8 text-autisti-primary dark:text-autisti-dark-100" />
             <p className="mt-3 text-sm text-autisti-muted dark:text-autisti-dark-300">
-              Nessun giro programmato per {isToday ? "oggi" : "questa data"}.
+              {user.vehicle
+                ? isToday
+                  ? "Non è stato assegnato alcun giro a questo furgone per oggi."
+                  : "Non è stato assegnato alcun giro a questo furgone per questa data."
+                : isToday
+                  ? "Nessun giro programmato per oggi."
+                  : "Nessun giro programmato per questa data."}
             </p>
           </div>
         ) : (
@@ -266,35 +329,11 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
           navHidden ? "pointer-events-none translate-y-[calc(100%+1rem)]" : "translate-y-0"
         }`}
       >
-        <div className="autisti-glass-nav mx-auto grid max-w-[460px] grid-cols-3 items-center justify-items-center rounded-lg border px-3 py-2">
-          <label
-            aria-label={isToday ? "Scegli data" : `Scegli data (attualmente ${activeDate})`}
-            className={`relative inline-flex size-9 cursor-pointer items-center justify-center overflow-hidden rounded-full border transition ${
-              isToday
-                ? "border-transparent text-autisti-muted dark:text-autisti-dark-300"
-                : "border-autisti-primary/30 bg-autisti-primary/10 text-autisti-primary dark:border-autisti-dark-300/40 dark:bg-autisti-dark-800 dark:text-autisti-dark-100"
-            }`}
-          >
-            <CalendarDays aria-hidden className="pointer-events-none size-4" />
-            {!isToday ? (
-              <span className="pointer-events-none absolute -right-0.5 -top-0.5 size-2 rounded-full bg-autisti-primary dark:bg-autisti-dark-300" />
-            ) : null}
-            <input
-              className="absolute inset-0 z-10 cursor-pointer opacity-0"
-              onChange={(event) => {
-                if (event.target.value) {
-                  setSelectedDate(event.target.value);
-                  setNavHidden(false);
-                }
-              }}
-              type="date"
-              value={activeDate}
-            />
-          </label>
+        <div className="autisti-glass-nav mx-auto flex max-w-[460px] items-center justify-center rounded-lg border px-3 py-2">
           {routeMapsHref ? (
             <a
               aria-label="Apri percorso su Google Maps"
-              className="inline-flex size-11 -translate-y-1 items-center justify-center rounded-full border border-autisti-primary bg-autisti-primary text-autisti-on-primary shadow-[0_10px_24px_rgba(30,74,122,0.28)] dark:border-autisti-dark-300 dark:bg-autisti-dark-300 dark:text-autisti-dark-950"
+              className="inline-flex size-11 items-center justify-center rounded-full border border-autisti-primary bg-autisti-primary text-autisti-on-primary shadow-[0_10px_24px_rgba(30,74,122,0.28)] dark:border-autisti-dark-300 dark:bg-autisti-dark-300 dark:text-autisti-dark-950"
               href={routeMapsHref}
               rel="noreferrer"
               target="_blank"
@@ -305,15 +344,12 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
             <span
               aria-disabled="true"
               aria-label="Percorso non disponibile"
-              className="inline-flex size-11 -translate-y-1 items-center justify-center rounded-full border border-autisti-primary/40 bg-autisti-primary/40 text-autisti-on-primary opacity-60 dark:border-autisti-dark-300/40 dark:bg-autisti-dark-300/40 dark:text-autisti-dark-950"
+              className="inline-flex size-11 items-center justify-center rounded-full border border-autisti-primary/40 bg-autisti-primary/40 text-autisti-on-primary opacity-60 dark:border-autisti-dark-300/40 dark:bg-autisti-dark-300/40 dark:text-autisti-dark-950"
               title="Nessuna tappa con indirizzo o coordinate"
             >
               {loading ? <LoaderCircle className="size-4 animate-spin" /> : <Navigation className="size-4" />}
             </span>
           )}
-          <span className="inline-flex size-9 items-center justify-center rounded-full border border-transparent text-autisti-muted/50 dark:text-autisti-dark-300/40">
-            <Package className="size-4" />
-          </span>
         </div>
       </nav>
     </main>
@@ -552,18 +588,17 @@ function StopCard({
                             {stop.cleanerSequence}
                           </span>
                         ) : null}
-                        {stop.cleanerAlias ? (
-                          stop.cleanerMobile ? (
-                            <a
-                              className="font-medium text-autisti-primary underline-offset-2 hover:underline dark:text-autisti-dark-100"
-                              href={`tel:${normalizePhoneHref(stop.cleanerMobile)}`}
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              {stop.cleanerAlias}
-                            </a>
-                          ) : (
-                            <span>{stop.cleanerAlias}</span>
-                          )
+                        {stop.cleanerAlias ? <span className="font-medium">{stop.cleanerAlias}</span> : null}
+                        {stop.cleanerMobile ? (
+                          <a
+                            aria-label={`Chiama ${stop.cleanerAlias ?? "cleaner"}`}
+                            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/15 text-emerald-700 transition hover:bg-emerald-500/25 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200"
+                            href={`tel:${normalizePhoneHref(stop.cleanerMobile)}`}
+                            onClick={(event) => event.stopPropagation()}
+                            title={`Chiama ${stop.cleanerAlias ?? "cleaner"}`}
+                          >
+                            <Phone aria-hidden className="size-4" />
+                          </a>
                         ) : null}
                       </dd>
                     </div>
@@ -719,30 +754,36 @@ function StopCard({
                 </div>
               ) : null}
 
-              {mapsHref ? (
-                stop.isFinished ? (
+              <div className="mt-3 flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
+                {stop.cleanerMobile ? (
                   <a
-                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-slate-300/70 bg-slate-300/40 px-3 text-sm text-slate-600 transition hover:border-slate-400 dark:border-slate-600/50 dark:bg-slate-700/40 dark:text-slate-300 dark:hover:border-slate-500"
+                    className={
+                      stop.isFinished
+                        ? "inline-flex min-h-10 items-center gap-2 rounded-full border border-emerald-300/70 bg-emerald-100/80 px-3 text-sm text-emerald-800 transition hover:border-emerald-400 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200"
+                        : "inline-flex min-h-10 items-center gap-2 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-3 text-sm font-medium text-emerald-700 transition hover:bg-emerald-500/25 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200"
+                    }
+                    href={`tel:${normalizePhoneHref(stop.cleanerMobile)}`}
+                  >
+                    <Phone className="size-3.5" />
+                    Chiama cleaner
+                  </a>
+                ) : null}
+                {mapsHref ? (
+                  <a
+                    className={
+                      stop.isFinished
+                        ? "inline-flex min-h-10 items-center gap-2 rounded-full border border-slate-300/70 bg-slate-300/40 px-3 text-sm text-slate-600 transition hover:border-slate-400 dark:border-slate-600/50 dark:bg-slate-700/40 dark:text-slate-300 dark:hover:border-slate-500"
+                        : "inline-flex min-h-10 items-center gap-2 rounded-full border border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] px-3 text-sm text-autisti-primary transition hover:border-autisti-primary/50 dark:text-autisti-dark-100 dark:hover:border-autisti-dark-300/50"
+                    }
                     href={mapsHref}
-                    onClick={(event) => event.stopPropagation()}
                     rel="noreferrer"
                     target="_blank"
                   >
                     <ExternalLink className="size-3.5" />
                     Apri maps
                   </a>
-                ) : (
-                  <a
-                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] px-3 text-sm text-autisti-primary transition hover:border-autisti-primary/50 dark:text-autisti-dark-100 dark:hover:border-autisti-dark-300/50"
-                    href={mapsHref}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    <ExternalLink className="size-3.5" />
-                    Apri maps
-                  </a>
-                )
-              ) : null}
+                ) : null}
+              </div>
 
               {stop.premium || stop.straordinaria ? (
                 <ul className="mt-3 grid gap-1 text-sm">

@@ -4,6 +4,7 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { DriverAuthController } from "./driver-auth.controller";
 import { DriverAuthService } from "./driver-auth.service";
 import { DriverSessionGuard } from "./driver-session.guard";
+import { DriverVehicleAssignmentService } from "./driver-vehicle-assignment.service";
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { DriverSessionGuard } from "./driver-session.guard";
     }),
   ],
   controllers: [DriverAuthController],
-  providers: [DriverAuthService, DriverSessionGuard],
-  exports: [DriverAuthService, DriverSessionGuard],
+  providers: [DriverAuthService, DriverSessionGuard, DriverVehicleAssignmentService],
+  exports: [DriverAuthService, DriverSessionGuard, DriverVehicleAssignmentService],
 })
 export class DriverAuthModule {}

@@ -11,7 +11,7 @@ type DriverLoginFormProps = {
 };
 
 const initialDriverLoginState = {
-  email: "",
+  code: "",
   message: null,
   remember: false,
 };
@@ -66,16 +66,18 @@ export function DriverLoginForm({ initialTheme }: DriverLoginFormProps) {
 
           <form action={formAction} className="grid gap-4" ref={formRef}>
             <label className="grid gap-1.5 text-sm text-autisti-muted dark:text-autisti-dark-300">
-              <span className="pl-4">Email</span>
+              <span className="pl-4">Codice furgone</span>
               <input
-                className="min-h-12 w-full rounded-full border border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] px-4 py-2 text-base text-autisti-text outline-none transition placeholder:text-autisti-muted/70 focus:border-autisti-primary focus:ring-4 focus:ring-autisti-primary/15 dark:text-autisti-dark-100 dark:placeholder:text-autisti-dark-300/60 dark:focus:border-autisti-dark-300 dark:focus:ring-autisti-dark-300/20"
-                autoComplete="email"
-                defaultValue={state.email}
+                className="min-h-12 w-full rounded-full border border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] px-4 py-2 text-base uppercase text-autisti-text outline-none transition placeholder:normal-case placeholder:text-autisti-muted/70 focus:border-autisti-primary focus:ring-4 focus:ring-autisti-primary/15 dark:text-autisti-dark-100 dark:placeholder:text-autisti-dark-300/60 dark:focus:border-autisti-dark-300 dark:focus:ring-autisti-dark-300/20"
+                autoCapitalize="characters"
+                autoComplete="username"
+                defaultValue={state.code}
                 enterKeyHint="next"
-                name="email"
-                placeholder="email@esempio.it"
+                name="code"
+                placeholder="Veicolo"
                 required
-                type="email"
+                spellCheck={false}
+                type="text"
               />
             </label>
 

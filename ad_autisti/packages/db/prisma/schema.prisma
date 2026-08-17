@@ -190,6 +190,7 @@ model AppUser {
   lastname                 String?            @db.VarChar(255)
   email                    String?            @db.VarChar(255)
   mobile                   String?            @db.VarChar(255)
+  phone                    String?            @db.VarChar(255)
   userRoleId               Int?               @map("user_role_id") @db.UnsignedInt
   active                   Int                @default(0) @db.TinyInt
   admTenantId              Int                @default(1) @map("adm_tenant_id") @db.UnsignedInt
@@ -242,6 +243,7 @@ model AppHousekeeping {
   deletedAtClient    DateTime?               @map("deleted_at_client")
   cleanedByUs        Int?                    @default(0) @map("cleaned_by_us") @db.UnsignedInt
   drivenByUs         Int                     @default(0) @map("driven_by_us")
+  lgVehicle          Int                     @default(0) @map("lg_vehicle")
   lgSequence         Int                     @default(0) @map("lg_sequence")
   lgTravelTime       Int?                    @map("lg_travel_time")
   lgStartTime        DateTime?               @map("lg_start_time") @db.Time(0)

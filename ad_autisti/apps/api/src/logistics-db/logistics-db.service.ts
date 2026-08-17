@@ -30,12 +30,10 @@ export class LogisticsDbService implements OnModuleDestroy {
     @Inject(ConfigService)
     private readonly config: ConfigService,
   ) {
-    const connectionString =
-      this.config.get<string>("LOGISTICS_DATABASE_URL")?.trim() ||
-      this.config.get<string>("DATABASE_URL")?.trim();
+    const connectionString = this.config.get<string>("LOGISTICS_DATABASE_URL")?.trim();
 
     if (!connectionString) {
-      throw new Error("LOGISTICS_DATABASE_URL or DATABASE_URL is required for the logistics DB.");
+      throw new Error("LOGISTICS_DATABASE_URL is required for the logistics DB.");
     }
 
     this.pool = createLogisticsPool(connectionString);
