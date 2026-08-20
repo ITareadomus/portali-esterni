@@ -30,7 +30,6 @@ import type { ThemeName } from "@/lib/theme";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const POLL_INTERVAL_MS = 15_000;
-const SELECTED_DATE_STORAGE_KEY = "autisti.selectedDate";
 
 type DriverRoutePanelProps = {
   initialTheme: ThemeName;
@@ -41,7 +40,7 @@ type LoadMode = "initial" | "poll";
 
 export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) {
   const todayYmd = useMemo(() => getLocalYmd(new Date()), []);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(todayYmd);
   const [data, setData] = useState<DriverTodayRouteResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -105,15 +104,20 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
   );
 
   useEffect(() => {
-    setSelectedDate(readStoredSelectedDate(todayYmd));
-  }, [todayYmd]);
+    // Always land on today's date on open/refresh.
+    try {
+      window.localStorage.removeItem("autisti.selectedDate");
+    } catch {
+      // ignore storage failures
+    }
+    setSelectedDate(getLocalYmd(new Date()));
+  }, []);
 
   useEffect(() => {
     if (!selectedDate) {
       return;
     }
 
-    writeStoredSelectedDate(selectedDate);
     void loadRoute("initial", selectedDate);
 
     return () => {
@@ -136,6 +140,32 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
       window.clearInterval(timer);
     };
   }, [loadRoute, selectedDate]);
+
+  useEffect(() => {
+    const reloadForNewDay = () => {
+      if (getLocalYmd(new Date()) !== todayYmd) {
+        window.location.reload();
+      }
+    };
+
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 50);
+    const midnightTimer = window.setTimeout(() => {
+      window.location.reload();
+    }, Math.max(nextMidnight.getTime() - now.getTime(), 0));
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        reloadForNewDay();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearTimeout(midnightTimer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [todayYmd]);
 
   useEffect(() => {
     lastScrollYRef.current = window.scrollY;
@@ -177,7 +207,7 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
   }
 
   const stops = data?.stops ?? [];
-  const activeDate = selectedDate ?? todayYmd;
+  const activeDate = selectedDate;
   const isToday = activeDate === todayYmd;
   const routeMapsHref = useMemo(() => buildFullRouteMapsHref(stops), [stops]);
 
@@ -1012,39 +1042,6 @@ function getLocalYmd(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function isValidYmd(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-  return (
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day
-  );
-}
-
-function readStoredSelectedDate(fallback: string): string {
-  try {
-    const stored = window.localStorage.getItem(SELECTED_DATE_STORAGE_KEY)?.trim() ?? "";
-    if (stored && isValidYmd(stored)) {
-      return stored;
-    }
-  } catch {
-    // ignore storage failures
-  }
-  return fallback;
-}
-
-function writeStoredSelectedDate(value: string): void {
-  try {
-    window.localStorage.setItem(SELECTED_DATE_STORAGE_KEY, value);
-  } catch {
-    // ignore storage failures
-  }
 }
 
 function formatCustomerNote(note: string): string {
