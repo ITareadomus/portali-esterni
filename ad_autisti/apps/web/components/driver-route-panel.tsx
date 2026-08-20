@@ -619,17 +619,6 @@ function StopCard({
                           </span>
                         ) : null}
                         {stop.cleanerAlias ? <span className="font-medium">{stop.cleanerAlias}</span> : null}
-                        {stop.cleanerMobile ? (
-                          <a
-                            aria-label={`Chiama ${stop.cleanerAlias ?? "cleaner"}`}
-                            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/15 text-emerald-700 transition hover:bg-emerald-500/25 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200"
-                            href={`tel:${normalizePhoneHref(stop.cleanerMobile)}`}
-                            onClick={(event) => event.stopPropagation()}
-                            title={`Chiama ${stop.cleanerAlias ?? "cleaner"}`}
-                          >
-                            <Phone aria-hidden className="size-4" />
-                          </a>
-                        ) : null}
                       </dd>
                     </div>
                     <InfoRow
@@ -789,8 +778,8 @@ function StopCard({
                   <a
                     className={
                       stop.isFinished
-                        ? "inline-flex min-h-10 items-center gap-2 rounded-full border border-emerald-300/70 bg-emerald-100/80 px-3 text-sm text-emerald-800 transition hover:border-emerald-400 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200"
-                        : "inline-flex min-h-10 items-center gap-2 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-3 text-sm font-medium text-emerald-700 transition hover:bg-emerald-500/25 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200"
+                        ? "inline-flex min-h-10 items-center gap-2 rounded-full border border-violet-300/70 bg-violet-100/80 px-3 text-sm text-violet-800 transition hover:border-violet-400 dark:border-violet-400/40 dark:bg-violet-500/20 dark:text-violet-200"
+                        : "inline-flex min-h-10 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/15 px-3 text-sm font-medium text-violet-700 transition hover:bg-violet-500/25 dark:border-violet-400/40 dark:bg-violet-500/20 dark:text-violet-200"
                     }
                     href={`tel:${normalizePhoneHref(stop.cleanerMobile)}`}
                   >
