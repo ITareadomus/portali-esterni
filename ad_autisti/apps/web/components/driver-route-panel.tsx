@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  ExternalLink,
   KeyRound,
   Keyboard,
   LoaderCircle,
@@ -25,7 +24,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import type { DriverAccessBundle, DriverAuthUser, DriverTimelineStop, DriverTodayRouteResponse } from "@adam/types";
-import { getDriverTodayRoute, startDriverStop, finishDriverStop, reopenDriverStop, logoutDriver } from "@/lib/api";
+import { getDriverTodayRoute, startDriverStop, pauseDriverStop, finishDriverStop, reopenDriverStop, logoutDriver } from "@/lib/api";
 import type { ThemeName } from "@/lib/theme";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -398,6 +397,8 @@ function StopCard({
   const [notesOpen, setNotesOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState(false);
+  const [pausing, setPausing] = useState(false);
+  const [pauseError, setPauseError] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState(false);
   const [reopening, setReopening] = useState(false);
@@ -433,6 +434,23 @@ function StopCard({
       setStartError(true);
     } finally {
       setStarting(false);
+    }
+  }
+
+  async function handlePause() {
+    if (pausing || !isActive) {
+      return;
+    }
+
+    setPausing(true);
+    setPauseError(false);
+    try {
+      await pauseDriverStop(stop.id);
+      onStatusChange();
+    } catch {
+      setPauseError(true);
+    } finally {
+      setPausing(false);
     }
   }
 
@@ -619,6 +637,17 @@ function StopCard({
                           </span>
                         ) : null}
                         {stop.cleanerAlias ? <span className="font-medium">{stop.cleanerAlias}</span> : null}
+                        {stop.cleanerMobile ? (
+                          <a
+                            aria-label={`Chiama ${stop.cleanerAlias ?? "cleaner"}`}
+                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-emerald-400/50 bg-emerald-500/15 text-emerald-700 transition hover:bg-emerald-500/25 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200"
+                            href={`tel:${normalizePhoneHref(stop.cleanerMobile)}`}
+                            onClick={(event) => event.stopPropagation()}
+                            title={`Chiama ${stop.cleanerAlias ?? "cleaner"}`}
+                          >
+                            <Phone aria-hidden className="size-3.5" />
+                          </a>
+                        ) : null}
                       </dd>
                     </div>
                     <InfoRow
@@ -773,37 +802,6 @@ function StopCard({
                 </div>
               ) : null}
 
-              <div className="mt-3 flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
-                {stop.cleanerMobile ? (
-                  <a
-                    className={
-                      stop.isFinished
-                        ? "inline-flex min-h-10 items-center gap-2 rounded-full border border-violet-300/70 bg-violet-100/80 px-3 text-sm text-violet-800 transition hover:border-violet-400 dark:border-violet-400/40 dark:bg-violet-500/20 dark:text-violet-200"
-                        : "inline-flex min-h-10 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/15 px-3 text-sm font-medium text-violet-700 transition hover:bg-violet-500/25 dark:border-violet-400/40 dark:bg-violet-500/20 dark:text-violet-200"
-                    }
-                    href={`tel:${normalizePhoneHref(stop.cleanerMobile)}`}
-                  >
-                    <Phone className="size-3.5" />
-                    Chiama cleaner
-                  </a>
-                ) : null}
-                {mapsHref ? (
-                  <a
-                    className={
-                      stop.isFinished
-                        ? "inline-flex min-h-10 items-center gap-2 rounded-full border border-slate-300/70 bg-slate-300/40 px-3 text-sm text-slate-600 transition hover:border-slate-400 dark:border-slate-600/50 dark:bg-slate-700/40 dark:text-slate-300 dark:hover:border-slate-500"
-                        : "inline-flex min-h-10 items-center gap-2 rounded-full border border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] px-3 text-sm text-autisti-primary transition hover:border-autisti-primary/50 dark:text-autisti-dark-100 dark:hover:border-autisti-dark-300/50"
-                    }
-                    href={mapsHref}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    <ExternalLink className="size-3.5" />
-                    Apri maps
-                  </a>
-                ) : null}
-              </div>
-
               {stop.premium || stop.straordinaria ? (
                 <ul className="mt-3 grid gap-1 text-sm">
                   {stop.premium ? (
@@ -821,49 +819,65 @@ function StopCard({
 
               {!stop.isFinished ? (
                 <div className="mt-3 grid gap-2">
-                  {!stop.isStarted ? (
+                  <div className="flex items-center gap-3">
+                    {!stop.isStarted || stop.isPaused ? (
+                      <button
+                        aria-label={stop.isPaused ? "Riprendi" : "Avvia"}
+                        className="inline-flex size-14 items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.28)] transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-300/50 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                        disabled={starting}
+                        onClick={() => void handleStart()}
+                        type="button"
+                      >
+                        {starting ? (
+                          <LoaderCircle className="size-6 animate-spin" />
+                        ) : (
+                          <Play className="size-6 fill-current" />
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        aria-label="Pausa"
+                        className="inline-flex size-14 items-center justify-center rounded-full border border-sky-400/60 bg-sky-500 text-white shadow-[0_8px_18px_rgba(14,165,233,0.28)] transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-300/50 dark:bg-sky-500 dark:hover:bg-sky-400"
+                        disabled={pausing}
+                        onClick={() => void handlePause()}
+                        type="button"
+                      >
+                        {pausing ? (
+                          <LoaderCircle className="size-6 animate-spin" />
+                        ) : (
+                          <Pause className="size-6 fill-current" />
+                        )}
+                      </button>
+                    )}
                     <button
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-emerald-300/70 bg-emerald-100 px-4 text-sm font-medium uppercase tracking-wide text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-200/80 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200 dark:hover:border-emerald-300/60 dark:hover:bg-emerald-500/30"
-                      disabled={starting}
-                      onClick={() => void handleStart()}
-                      type="button"
-                    >
-                      {starting ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <Play className="size-4 fill-current" />
-                      )}
-                      {starting ? "Avvio..." : "Avvia"}
-                    </button>
-                  ) : stop.isPaused ? (
-                    <button
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-violet-300/70 bg-violet-100 px-4 text-sm font-medium uppercase tracking-wide text-violet-700 transition hover:border-violet-400 hover:bg-violet-200/80 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-400/40 dark:bg-violet-500/20 dark:text-violet-200 dark:hover:border-violet-300/60 dark:hover:bg-violet-500/30"
-                      disabled={starting}
-                      onClick={() => void handleStart()}
-                      type="button"
-                    >
-                      {starting ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <Pause className="size-4 fill-current" />
-                      )}
-                      {starting ? "Ripresa..." : "In Pausa"}
-                    </button>
-                  ) : (
-                    <button
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-red-300/70 bg-red-100 px-4 text-sm font-medium uppercase tracking-wide text-red-700 transition hover:border-red-400 hover:bg-red-200/80 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-400/40 dark:bg-red-500/20 dark:text-red-200 dark:hover:border-red-300/60 dark:hover:bg-red-500/30"
-                      disabled={finishing}
+                      aria-label="Completa"
+                      className={`inline-flex size-14 items-center justify-center rounded-full border transition disabled:cursor-not-allowed ${
+                        isActive
+                          ? "border-emerald-400/60 bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.28)] hover:bg-emerald-600 dark:border-emerald-300/50 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                          : "border-slate-300/80 bg-slate-200/80 text-slate-400 dark:border-slate-600/50 dark:bg-slate-700/40 dark:text-slate-500"
+                      }`}
+                      disabled={!isActive || finishing}
                       onClick={() => void handleFinish()}
                       type="button"
                     >
                       {finishing ? (
-                        <LoaderCircle className="size-4 animate-spin" />
+                        <LoaderCircle className="size-6 animate-spin" />
                       ) : (
-                        <Check className="size-4 stroke-[2.5]" />
+                        <Check className="size-7" strokeWidth={3.5} />
                       )}
-                      {finishing ? "Salvataggio..." : "Completa"}
                     </button>
-                  )}
+                    {mapsHref ? (
+                      <a
+                        aria-label="Apri maps"
+                        className="inline-flex size-14 items-center justify-center rounded-full border border-slate-300/80 bg-slate-400 text-white shadow-[0_8px_18px_rgba(100,116,139,0.22)] transition hover:bg-slate-500 dark:border-slate-500/50 dark:bg-slate-500 dark:hover:bg-slate-400"
+                        href={mapsHref}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <MapPinned className="size-6" />
+                      </a>
+                    ) : null}
+                  </div>
                   {startError ? (
                     <p className="text-sm text-red-600 dark:text-red-400" role="alert">
                       {stop.isPaused
@@ -871,14 +885,19 @@ function StopCard({
                         : "Non sono riuscito ad avviare la fermata. Riprova."}
                     </p>
                   ) : null}
+                  {pauseError ? (
+                    <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+                      Non sono riuscito a mettere in pausa la fermata. Riprova.
+                    </p>
+                  ) : null}
                   {finishError ? (
                     <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-                      Non sono riuscito a segnare la fermata come completata. Riprova.
+                      Non sono riuscito a completare la fermata. Riprova.
                     </p>
                   ) : null}
                 </div>
               ) : (
-                <div className="mt-3 grid gap-2" onClick={(event) => event.stopPropagation()}>
+                <div className="mt-3 flex flex-wrap items-center gap-3" onClick={(event) => event.stopPropagation()}>
                   <button
                     className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-amber-300/70 bg-amber-100 px-4 text-sm font-medium uppercase tracking-wide text-amber-700 transition hover:border-amber-400 hover:bg-amber-200/80 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200 dark:hover:border-amber-300/60 dark:hover:bg-amber-500/30"
                     disabled={reopening}
@@ -892,8 +911,19 @@ function StopCard({
                     )}
                     {reopening ? "Ripristino..." : "Riapri"}
                   </button>
+                  {mapsHref ? (
+                    <a
+                      aria-label="Apri maps"
+                      className="inline-flex size-14 items-center justify-center rounded-full border border-slate-300/80 bg-slate-400 text-white shadow-[0_8px_18px_rgba(100,116,139,0.22)] transition hover:bg-slate-500 dark:border-slate-500/50 dark:bg-slate-500 dark:hover:bg-slate-400"
+                      href={mapsHref}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <MapPinned className="size-6" />
+                    </a>
+                  ) : null}
                   {reopenError ? (
-                    <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+                    <p className="w-full text-sm text-red-600 dark:text-red-400" role="alert">
                       Non sono riuscito a riaprire la fermata. Riprova.
                     </p>
                   ) : null}

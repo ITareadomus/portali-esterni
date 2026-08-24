@@ -19,8 +19,8 @@ const clientiDisplay = IBM_Plex_Sans_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "ADAM",
-  description: "ADAM",
+  title: "WASS - Autisti",
+  description: "WASS - Autisti",
 };
 
 export async function generateViewport(): Promise<Viewport> {

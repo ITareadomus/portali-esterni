@@ -227,6 +227,40 @@ export class DriverTimelineService {
     return toStopStatusResponse(taskId, realStart, null, false, formatDateYmd(existing.checkout));
   }
 
+  async markStopPaused(
+    session: DriverAuthSession,
+    stopId: number,
+  ): Promise<DriverStopStatusResponse> {
+    const { taskId } = await this.resolveOwnedTask(session, stopId);
+    const existing = await this.prisma.client.appHousekeeping.findFirst({
+      where: { id: taskId, deleted: 0, deletedAt: null },
+      select: { id: true, realStart: true, realEnd: true, lgPaused: true, checkout: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException("Housekeeping task not found.");
+    }
+
+    if (!existing.realStart) {
+      throw new BadRequestException("Start the task before pausing it.");
+    }
+
+    if (existing.realEnd) {
+      throw new BadRequestException("Task already finished.");
+    }
+
+    if (isLgPaused(existing.lgPaused)) {
+      return toStopStatusResponse(taskId, existing.realStart, null, true, formatDateYmd(existing.checkout));
+    }
+
+    await this.prisma.client.appHousekeeping.update({
+      where: { id: taskId },
+      data: { lgPaused: 1 },
+    });
+
+    return toStopStatusResponse(taskId, existing.realStart, null, true, formatDateYmd(existing.checkout));
+  }
+
   async markStopFinished(
     session: DriverAuthSession,
     stopId: number,

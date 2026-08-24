@@ -190,6 +190,24 @@ export async function startDriverStop(
   return (await response.json()) as DriverStopStatusResponse;
 }
 
+export async function pauseDriverStop(
+  timelineId: number,
+  signal?: AbortSignal,
+): Promise<DriverStopStatusResponse> {
+  const response = await fetch(`${API_BASE}/driver/timeline/${timelineId}/pause`, {
+    cache: "no-store",
+    credentials: "include",
+    method: "POST",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`driver_timeline_pause_${response.status}`);
+  }
+
+  return (await response.json()) as DriverStopStatusResponse;
+}
+
 export async function finishDriverStop(
   timelineId: number,
   signal?: AbortSignal,

@@ -73,6 +73,30 @@ export class DriverTimelineController {
     return this.driverTimeline.markStopStarted(request.driverSession!, params.timelineId);
   }
 
+  @Post(":timelineId/pause")
+  @UseGuards(DriverSessionGuard)
+  @ApiOkResponse({
+    schema: {
+      example: {
+        ok: true,
+        timelineId: 123,
+        taskId: 456,
+        isStarted: true,
+        isPaused: true,
+        isFinished: false,
+        realStart: "2026-08-03T09:15:00.000Z",
+        realEnd: null,
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid driver session." })
+  pause(
+    @Req() request: DriverSessionRequest,
+    @Param() params: DriverFinishStopParamsDto,
+  ): Promise<DriverStopStatusResponse> {
+    return this.driverTimeline.markStopPaused(request.driverSession!, params.timelineId);
+  }
+
   @Post(":timelineId/finish")
   @UseGuards(DriverSessionGuard)
   @ApiOkResponse({
