@@ -923,7 +923,7 @@ function StopCard({
 
               {!stop.isFinished ? (
                 <div className="mt-3 grid gap-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex w-full items-center">
                     <div className="flex items-center gap-3">
                       {!stop.isStarted || stop.isPaused ? (
                         <button
@@ -974,11 +974,13 @@ function StopCard({
                     </div>
                     {mapsHref || stop.accessInfo || stop.accessAttachmentUrls?.length ? (
                       <>
-                        <span
-                          aria-hidden
-                          className="mx-1 h-10 w-px shrink-0 bg-[color:var(--autisti-glass-border)]"
-                        />
-                        <div className="ml-auto flex items-center gap-3">
+                        <div className="flex min-w-3 flex-1 items-center justify-center self-stretch px-2">
+                          <span
+                            aria-hidden
+                            className="h-10 w-px shrink-0 bg-[color:var(--autisti-glass-border)]"
+                          />
+                        </div>
+                        <div className="flex items-center gap-3">
                           {mapsHref ? (
                             <a
                               aria-label="Apri maps"
