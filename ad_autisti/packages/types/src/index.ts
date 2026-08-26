@@ -243,6 +243,10 @@ export type DriverTimelineStop = {
   singleSofabeds: number | null;
   doubleSofabeds: number | null;
   accessBundles: DriverAccessBundle[];
+  /** Plain access notes from app_structures.access_info (newlines rendered as <br> on the client). */
+  accessInfo: string | null;
+  /** Full URLs for structure attachment videos under /uploads/adam/strutture/{folder}/. */
+  accessAttachmentUrls: string[];
   lat: number | null;
   lng: number | null;
   travelTime: number | null;

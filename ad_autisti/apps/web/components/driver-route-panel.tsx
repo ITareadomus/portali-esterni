@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  DoorOpen,
   KeyRound,
   Keyboard,
   LoaderCircle,
@@ -20,6 +21,7 @@ import {
   RotateCcw,
   Truck,
   Unlock,
+  Video,
   X,
 } from "lucide-react";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
@@ -405,6 +407,7 @@ function StopCard({
   const [reopenError, setReopenError] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [accessBundle, setAccessBundle] = useState<DriverAccessBundle | null>(null);
+  const [accessInfoOpen, setAccessInfoOpen] = useState(false);
   const mapsHref =
     stop.lat !== null && stop.lng !== null
       ? `https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}`
@@ -505,12 +508,16 @@ function StopCard({
   return (
     <li
       aria-expanded={stop.isFinished ? expanded : undefined}
-      className={`autisti-glass rounded-lg border transition ${
+      className={`rounded-lg border transition ${
         stop.isFinished
-          ? `border-slate-300/80 bg-slate-200/70 text-slate-500 dark:border-slate-600/50 dark:bg-slate-800/50 dark:text-slate-400 ${
+          ? `autisti-glass border-slate-300/80 bg-slate-200/70 text-slate-500 dark:border-slate-600/50 dark:bg-slate-800/50 dark:text-slate-400 ${
               expanded ? "p-3" : "cursor-pointer p-2 hover:border-slate-400/80 dark:hover:border-slate-500/60"
             }`
-          : "p-3"
+          : isActive
+            ? "autisti-task-active p-3"
+            : stop.isPaused
+              ? "autisti-task-paused p-3"
+              : "autisti-glass p-3"
       }`}
       onClick={stop.isFinished ? toggleExpanded : undefined}
       onKeyDown={
@@ -536,7 +543,7 @@ function StopCard({
         >
           {stop.sequence ?? index + 1}
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 autisti-task-copy">
           {!showDetails ? (
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
@@ -567,12 +574,12 @@ function StopCard({
                 <div className="flex flex-wrap items-center gap-2">
                   {stop.logisticsTaskKind ? <TaskKindBadge kind={stop.logisticsTaskKind} /> : null}
                   {isActive ? (
-                    <span className="rounded-full border border-emerald-300/80 bg-emerald-100 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200">
+                    <span className="autisti-task-status-badge rounded-full border border-emerald-300/80 bg-emerald-100 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200">
                       In corso
                     </span>
                   ) : null}
                   {stop.isPaused ? (
-                    <span className="rounded-full border border-amber-300/80 bg-amber-100 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200">
+                    <span className="autisti-task-status-badge rounded-full border border-amber-300/80 bg-amber-100 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200">
                       In pausa
                     </span>
                   ) : null}
@@ -685,6 +692,103 @@ function StopCard({
                   </div>
                 </div>
               ) : null}
+
+              <Dialog
+                onClose={() => setAccessInfoOpen(false)}
+                open={accessInfoOpen}
+              >
+                <div
+                  className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <DialogPanel className="autisti-glass max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border p-4 shadow-xl dark:border-autisti-dark-700">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex size-11 items-center justify-center rounded-full border border-teal-300/70 bg-teal-100 text-teal-700 dark:border-teal-400/40 dark:bg-teal-500/20 dark:text-teal-200">
+                          <DoorOpen aria-hidden className="size-5" />
+                        </span>
+                        <div>
+                          <DialogTitle className="text-base font-medium text-autisti-text dark:text-autisti-dark-100">
+                            Info accesso
+                          </DialogTitle>
+                          <p className="text-sm text-autisti-muted dark:text-autisti-dark-300">
+                            Indicazioni per entrare
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        aria-label="Chiudi"
+                        className="inline-flex size-9 items-center justify-center rounded-full border border-[color:var(--autisti-glass-border)] text-autisti-muted transition hover:border-autisti-primary/40 dark:text-autisti-dark-300"
+                        onClick={() => setAccessInfoOpen(false)}
+                        type="button"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+
+                    {(() => {
+                      const prepared = prepareAccessInfoContent(stop.accessInfo);
+                      return (
+                        <>
+                          {prepared.html ? (
+                            <div
+                              className="mt-4 rounded-xl border border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] px-3.5 py-3.5 text-[0.95rem] leading-[1.55] text-autisti-text dark:text-autisti-dark-100 [&_p]:mb-3.5 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_b]:font-semibold [&_a]:text-autisti-primary [&_a]:underline dark:[&_a]:text-autisti-dark-100"
+                              dangerouslySetInnerHTML={{ __html: prepared.html }}
+                            />
+                          ) : null}
+                          {prepared.youtubeUrls.length > 0 ? (
+                            <div className="mt-4 grid gap-3">
+                              <p className="text-[0.68rem] uppercase tracking-wide text-autisti-muted dark:text-autisti-dark-300">
+                                Video istruzioni
+                              </p>
+                              {prepared.youtubeUrls.map((embedUrl) => (
+                                <div
+                                  key={embedUrl}
+                                  className="overflow-hidden rounded-xl border border-[color:var(--autisti-glass-border)] bg-black/5 dark:bg-black/30"
+                                >
+                                  <iframe
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                    className="aspect-video w-full"
+                                    src={embedUrl}
+                                    title="Video istruzioni accesso"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+
+                    {stop.accessAttachmentUrls?.length ? (
+                      <div className="mt-4 grid gap-2">
+                        <p className="text-[0.68rem] uppercase tracking-wide text-autisti-muted dark:text-autisti-dark-300">
+                          Allegati
+                        </p>
+                        <ul className="grid gap-2">
+                          {stop.accessAttachmentUrls.map((url, index) => {
+                            const label = attachmentLabelFromUrl(url) || `Video ${index + 1}`;
+                            return (
+                              <li key={url}>
+                                <a
+                                  className="inline-flex min-h-10 w-full items-center gap-2 rounded-xl border border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] px-3 py-2 text-sm text-autisti-primary transition hover:border-autisti-primary/50 dark:text-autisti-dark-100 dark:hover:border-autisti-dark-300/50"
+                                  href={url}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                >
+                                  <Video aria-hidden className="size-4 shrink-0" />
+                                  <span className="truncate">{label}</span>
+                                </a>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </DialogPanel>
+                </div>
+              </Dialog>
 
               <Dialog
                 onClose={() => setAccessBundle(null)}
@@ -820,62 +924,85 @@ function StopCard({
               {!stop.isFinished ? (
                 <div className="mt-3 grid gap-2">
                   <div className="flex items-center gap-3">
-                    {!stop.isStarted || stop.isPaused ? (
-                      <button
-                        aria-label={stop.isPaused ? "Riprendi" : "Avvia"}
-                        className="inline-flex size-14 items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.28)] transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-300/50 dark:bg-emerald-500 dark:hover:bg-emerald-400"
-                        disabled={starting}
-                        onClick={() => void handleStart()}
-                        type="button"
-                      >
-                        {starting ? (
-                          <LoaderCircle className="size-6 animate-spin" />
-                        ) : (
-                          <Play className="size-6 fill-current" />
-                        )}
-                      </button>
-                    ) : (
-                      <button
-                        aria-label="Pausa"
-                        className="inline-flex size-14 items-center justify-center rounded-full border border-sky-400/60 bg-sky-500 text-white shadow-[0_8px_18px_rgba(14,165,233,0.28)] transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-300/50 dark:bg-sky-500 dark:hover:bg-sky-400"
-                        disabled={pausing}
-                        onClick={() => void handlePause()}
-                        type="button"
-                      >
-                        {pausing ? (
-                          <LoaderCircle className="size-6 animate-spin" />
-                        ) : (
-                          <Pause className="size-6 fill-current" />
-                        )}
-                      </button>
-                    )}
-                    <button
-                      aria-label="Completa"
-                      className={`inline-flex size-14 items-center justify-center rounded-full border transition disabled:cursor-not-allowed ${
-                        isActive
-                          ? "border-emerald-400/60 bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.28)] hover:bg-emerald-600 dark:border-emerald-300/50 dark:bg-emerald-500 dark:hover:bg-emerald-400"
-                          : "border-slate-300/80 bg-slate-200/80 text-slate-400 dark:border-slate-600/50 dark:bg-slate-700/40 dark:text-slate-500"
-                      }`}
-                      disabled={!isActive || finishing}
-                      onClick={() => void handleFinish()}
-                      type="button"
-                    >
-                      {finishing ? (
-                        <LoaderCircle className="size-6 animate-spin" />
+                    <div className="flex items-center gap-3">
+                      {!stop.isStarted || stop.isPaused ? (
+                        <button
+                          aria-label={stop.isPaused ? "Riprendi" : "Avvia"}
+                          className="inline-flex size-14 items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.28)] transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-300/50 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                          disabled={starting}
+                          onClick={() => void handleStart()}
+                          type="button"
+                        >
+                          {starting ? (
+                            <LoaderCircle className="size-6 animate-spin" />
+                          ) : (
+                            <Play className="size-6 fill-current" />
+                          )}
+                        </button>
                       ) : (
-                        <Check className="size-7" strokeWidth={3.5} />
+                        <button
+                          aria-label="Pausa"
+                          className="inline-flex size-14 items-center justify-center rounded-full border border-sky-400/60 bg-sky-500 text-white shadow-[0_8px_18px_rgba(14,165,233,0.28)] transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-300/50 dark:bg-sky-500 dark:hover:bg-sky-400"
+                          disabled={pausing}
+                          onClick={() => void handlePause()}
+                          type="button"
+                        >
+                          {pausing ? (
+                            <LoaderCircle className="size-6 animate-spin" />
+                          ) : (
+                            <Pause className="size-6 fill-current" />
+                          )}
+                        </button>
                       )}
-                    </button>
-                    {mapsHref ? (
-                      <a
-                        aria-label="Apri maps"
-                        className="inline-flex size-14 items-center justify-center rounded-full border border-slate-300/80 bg-slate-400 text-white shadow-[0_8px_18px_rgba(100,116,139,0.22)] transition hover:bg-slate-500 dark:border-slate-500/50 dark:bg-slate-500 dark:hover:bg-slate-400"
-                        href={mapsHref}
-                        rel="noreferrer"
-                        target="_blank"
+                      <button
+                        aria-label="Completa"
+                        className={`inline-flex size-14 items-center justify-center rounded-full border transition disabled:cursor-not-allowed ${
+                          isActive
+                            ? "border-emerald-400/60 bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.28)] hover:bg-emerald-600 dark:border-emerald-300/50 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                            : "border-slate-300/80 bg-slate-200/80 text-slate-400 dark:border-slate-600/50 dark:bg-slate-700/40 dark:text-slate-500"
+                        }`}
+                        disabled={!isActive || finishing}
+                        onClick={() => void handleFinish()}
+                        type="button"
                       >
-                        <MapPinned className="size-6" />
-                      </a>
+                        {finishing ? (
+                          <LoaderCircle className="size-6 animate-spin" />
+                        ) : (
+                          <Check className="size-7" strokeWidth={3.5} />
+                        )}
+                      </button>
+                    </div>
+                    {mapsHref || stop.accessInfo || stop.accessAttachmentUrls?.length ? (
+                      <>
+                        <span
+                          aria-hidden
+                          className="mx-1 h-10 w-px shrink-0 bg-[color:var(--autisti-glass-border)]"
+                        />
+                        <div className="ml-auto flex items-center gap-3">
+                          {mapsHref ? (
+                            <a
+                              aria-label="Apri maps"
+                              className="inline-flex size-14 items-center justify-center rounded-full border border-slate-300/80 bg-slate-400 text-white shadow-[0_8px_18px_rgba(100,116,139,0.22)] transition hover:bg-slate-500 dark:border-slate-500/50 dark:bg-slate-500 dark:hover:bg-slate-400"
+                              href={mapsHref}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              <MapPinned className="size-6" />
+                            </a>
+                          ) : null}
+                          {stop.accessInfo || stop.accessAttachmentUrls?.length ? (
+                            <button
+                              aria-label="Info accesso"
+                              className="inline-flex size-14 items-center justify-center rounded-full border border-teal-400/60 bg-teal-500 text-white shadow-[0_8px_18px_rgba(20,184,166,0.28)] transition hover:bg-teal-600 dark:border-teal-300/50 dark:bg-teal-500 dark:hover:bg-teal-400"
+                              onClick={() => setAccessInfoOpen(true)}
+                              title="Info accesso"
+                              type="button"
+                            >
+                              <DoorOpen className="size-6" />
+                            </button>
+                          ) : null}
+                        </div>
+                      </>
                     ) : null}
                   </div>
                   {startError ? (
@@ -921,6 +1048,17 @@ function StopCard({
                     >
                       <MapPinned className="size-6" />
                     </a>
+                  ) : null}
+                  {stop.accessInfo || stop.accessAttachmentUrls?.length ? (
+                    <button
+                      aria-label="Info accesso"
+                      className="inline-flex size-14 items-center justify-center rounded-full border border-teal-400/60 bg-teal-500 text-white shadow-[0_8px_18px_rgba(20,184,166,0.28)] transition hover:bg-teal-600 dark:border-teal-300/50 dark:bg-teal-500 dark:hover:bg-teal-400"
+                      onClick={() => setAccessInfoOpen(true)}
+                      title="Info accesso"
+                      type="button"
+                    >
+                      <DoorOpen className="size-6" />
+                    </button>
                   ) : null}
                   {reopenError ? (
                     <p className="w-full text-sm text-red-600 dark:text-red-400" role="alert">
@@ -1077,6 +1215,204 @@ function formatCustomerNote(note: string): string {
     .replace(/\r\n?/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/** Prepare access_info HTML for safe, readable display (keeps existing HTML structure). */
+function prepareAccessInfoContent(info: string | null | undefined): {
+  html: string;
+  youtubeUrls: string[];
+} {
+  const raw = info?.trim() ?? "";
+  if (!raw) {
+    return { html: "", youtubeUrls: [] };
+  }
+
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(raw);
+  if (!looksLikeHtml) {
+    return { html: formatPlainAccessInfoHtml(raw), youtubeUrls: [] };
+  }
+
+  if (typeof DOMParser === "undefined") {
+    return { html: formatPlainAccessInfoHtml(stripHtmlTags(raw)), youtubeUrls: [] };
+  }
+
+  const doc = new DOMParser().parseFromString(raw, "text/html");
+  const youtubeUrls: string[] = [];
+  const allowed = new Set(["P", "BR", "STRONG", "B", "EM", "I", "U", "UL", "OL", "LI", "DIV", "SPAN"]);
+
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return escapeHtml(node.textContent ?? "");
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return "";
+    }
+
+    const el = node as HTMLElement;
+    const tag = el.tagName;
+
+    if (tag === "SCRIPT" || tag === "STYLE" || tag === "LINK") {
+      return "";
+    }
+
+    if (tag === "IFRAME") {
+      const embed = normalizeYoutubeEmbedUrl(el.getAttribute("src"));
+      if (embed && !youtubeUrls.includes(embed)) {
+        youtubeUrls.push(embed);
+      }
+      return "";
+    }
+
+    if (tag === "A") {
+      const href = el.getAttribute("href")?.trim() ?? "";
+      const safeHref =
+        href.startsWith("https://") || href.startsWith("http://") || href.startsWith("/")
+          ? href
+          : null;
+      const inner = Array.from(el.childNodes).map(walk).join("");
+      if (!safeHref) {
+        return inner;
+      }
+      return `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noreferrer">${inner}</a>`;
+    }
+
+    const children = Array.from(el.childNodes).map(walk).join("");
+
+    if (!allowed.has(tag)) {
+      return children;
+    }
+
+    if (tag === "BR") {
+      return "<br>";
+    }
+
+    if (tag === "P" || tag === "DIV") {
+      const compact = children.replace(/^(?:&nbsp;|\s|<br\s*\/?>)*/i, "").replace(/(?:&nbsp;|\s|<br\s*\/?>)*$/i, "");
+      if (!compact || compact === "&nbsp;") {
+        return "";
+      }
+      return `<p>${children.trim()}</p>`;
+    }
+
+    if (tag === "SPAN") {
+      return children;
+    }
+
+    const lower = tag.toLowerCase();
+    return `<${lower}>${children}</${lower}>`;
+  };
+
+  const html = Array.from(doc.body.childNodes)
+    .map(walk)
+    .join("")
+    .replace(/<p>(?:\s|&nbsp;|<br\s*\/?>|<strong>\s*<\/strong>|<b>\s*<\/b>)*<\/p>/gi, "")
+    .replace(/(?:<br>\s*){3,}/gi, "<br><br>")
+    .trim();
+
+  return { html, youtubeUrls };
+}
+
+function normalizeYoutubeEmbedUrl(src: string | null | undefined): string | null {
+  if (!src?.trim()) {
+    return null;
+  }
+
+  let value = src.trim();
+  if (value.startsWith("//")) {
+    value = `https:${value}`;
+  }
+
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, "");
+    if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      const embedMatch = url.pathname.match(/\/embed\/([^/?]+)/);
+      const id = embedMatch?.[1] || url.searchParams.get("v");
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+    if (host === "youtu.be") {
+      const id = url.pathname.replace(/^\//, "").split("/")[0];
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function stripHtmlTags(value: string): string {
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function formatPlainAccessInfoHtml(info: string): string {
+  const normalized = info.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const blocks = normalized
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  return blocks
+    .map((block) => {
+      const lines = block.split("\n").map((line) => line.trimEnd());
+      const listItems = lines.map((line) => {
+        const match = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.+)$/);
+        return match?.[1]?.trim() ?? null;
+      });
+
+      if (listItems.length > 0 && listItems.every((item) => item !== null)) {
+        return `<ul>${listItems.map((item) => `<li>${escapeHtml(item!)}</li>`).join("")}</ul>`;
+      }
+
+      const htmlLines = lines
+        .map((line) => formatAccessInfoLine(line.trim()))
+        .filter((line) => line.length > 0);
+
+      if (htmlLines.length === 0) {
+        return "";
+      }
+
+      return `<p>${htmlLines.join("<br>")}</p>`;
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function formatAccessInfoLine(line: string): string {
+  if (!line) {
+    return "";
+  }
+
+  const labeled = line.match(/^([^:]{1,48}):\s*(.+)$/);
+  if (labeled) {
+    return `<strong>${escapeHtml(labeled[1])}:</strong> ${escapeHtml(labeled[2])}`;
+  }
+
+  return escapeHtml(line);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function attachmentLabelFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    const raw = path.split("/").pop() ?? "";
+    return decodeURIComponent(raw.replace(/\+/g, "%20"));
+  } catch {
+    const raw = url.split("/").pop() ?? url;
+    return raw.replace(/%20/g, " ");
+  }
 }
 
 /** Google Maps allows origin + destination + up to 9 waypoints via the maps URL. */

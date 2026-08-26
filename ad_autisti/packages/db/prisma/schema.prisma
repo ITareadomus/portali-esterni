@@ -307,6 +307,9 @@ model AppStructure {
   stateId           Int?                @default(0) @map("state_id") @db.UnsignedInt
   alertKeys         Int?                @default(0) @map("alert_keys") @db.TinyInt
   structureKeys     String?             @map("structure_keys") @db.MediumText
+  accessInfo        String?             @map("access_info") @db.MediumText
+  attachments       String?             @db.MediumText
+  folder            String?             @db.VarChar(255)
   singleSofabeds    Int?                @map("single_sofabeds")
   doubleSofabeds    Int?                @map("double_sofabeds")
   premium           Int?                @default(0) @db.TinyInt

@@ -773,3 +773,59 @@
 .clienti-anim-done .clienti-activity-item {
   animation: none;
 }
+
+/* Task status cards: solid fill + readable text above the color */
+.autisti-task-active,
+.autisti-task-paused {
+  position: relative;
+  isolation: isolate;
+  box-shadow: var(--autisti-shadow-card);
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.autisti-task-active {
+  background-color: #064e3b !important;
+  border-color: #34d399 !important;
+  color: #f8fafc !important;
+}
+
+.autisti-task-paused {
+  background-color: #0c4a6e !important;
+  border-color: #38bdf8 !important;
+  color: #f8fafc !important;
+}
+
+.autisti-task-active > *,
+.autisti-task-paused > * {
+  position: relative;
+  z-index: 1;
+}
+
+.autisti-task-active .autisti-task-copy,
+.autisti-task-paused .autisti-task-copy,
+.autisti-task-active .autisti-task-copy :where(p, dt, dd, span, strong, b, li, a),
+.autisti-task-paused .autisti-task-copy :where(p, dt, dd, span, strong, b, li, a) {
+  color: #f8fafc !important;
+}
+
+.autisti-task-active .autisti-task-copy :where(dt),
+.autisti-task-paused .autisti-task-copy :where(dt) {
+  color: rgba(248, 250, 252, 0.78) !important;
+}
+
+.autisti-task-active .autisti-glass-muted,
+.autisti-task-paused .autisti-glass-muted {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #f8fafc !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.autisti-task-active .autisti-task-status-badge,
+.autisti-task-paused .autisti-task-status-badge {
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  color: #f8fafc !important;
+}

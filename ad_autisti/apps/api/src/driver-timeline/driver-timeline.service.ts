@@ -50,6 +50,9 @@ const housekeepingStopSelect = {
       singleSofabeds: true,
       doubleSofabeds: true,
       structureKeys: true,
+      accessInfo: true,
+      attachments: true,
+      folder: true,
       customer: {
         select: {
           name: true,
@@ -502,6 +505,9 @@ type HousekeepingStopRow = {
     singleSofabeds: number | null;
     doubleSofabeds: number | null;
     structureKeys: string | null;
+    accessInfo: string | null;
+    attachments: string | null;
+    folder: string | null;
     customer: {
       name: string | null;
       nameFrontend: string | null;
@@ -555,6 +561,8 @@ function mapHousekeepingStop(
     singleSofabeds: toNullableInt(structure.singleSofabeds),
     doubleSofabeds: toNullableInt(structure.doubleSofabeds),
     accessBundles: parseStructureAccessBundles(structure.structureKeys, keyTypeLabels),
+    accessInfo: structure.accessInfo?.trim() || null,
+    accessAttachmentUrls: buildStructureAttachmentUrls(structure.folder, structure.attachments),
     lat: toCoordinate(structure.lat),
     lng: toCoordinate(structure.lng),
     travelTime: toNullableInt(row.lgTravelTime),
@@ -620,6 +628,29 @@ function timeFieldToIso(value: Date | string | null | undefined, ymd: string): s
   const [year, month, day] = ymd.split("-").map(Number);
   const [hours, minutes] = time.split(":").map(Number);
   return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0)).toISOString();
+}
+
+const STRUCTURE_UPLOAD_BASE_URL = "https://app.adam.areadomus.it/uploads/adam/strutture";
+
+function buildStructureAttachmentUrls(
+  folder: string | null | undefined,
+  attachments: string | null | undefined,
+): string[] {
+  const folderName = folder?.trim();
+  if (!folderName || !attachments?.trim()) {
+    return [];
+  }
+
+  const urls: string[] = [];
+  for (const item of attachments.split(",")) {
+    const fileName = item.trim();
+    if (!fileName) {
+      continue;
+    }
+    const sanitizedFile = fileName.replace(/ /g, "%20");
+    urls.push(`${STRUCTURE_UPLOAD_BASE_URL}/${folderName}/${sanitizedFile}`);
+  }
+  return urls;
 }
 
 function formatStructureAddress(structure: {
