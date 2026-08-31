@@ -226,7 +226,7 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <div className="relative hidden lg:block">
-              <button
+            <button
                 aria-label={isToday ? "Scegli data" : `Scegli data (attualmente ${activeDate})`}
                 className={`relative inline-flex size-11 cursor-pointer items-center justify-center rounded-full border transition ${
                   isToday
@@ -249,10 +249,10 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
                   input.focus();
                   input.click();
                 }}
-                type="button"
-              >
+              type="button"
+            >
                 <CalendarDays aria-hidden className="size-4" />
-              </button>
+            </button>
               <input
                 ref={dateInputRef}
                 aria-hidden
@@ -266,7 +266,7 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
                 type="date"
                 value={activeDate}
               />
-            </div>
+          </div>
             <ThemeToggle initialTheme={initialTheme} shape="pillow" tone="autisti" />
             <button
               className="autisti-glass-muted inline-flex size-11 items-center justify-center rounded-full border text-autisti-primary transition hover:bg-autisti-surface-muted focus:outline-none focus:ring-4 focus:ring-autisti-primary/15 disabled:opacity-60 dark:text-autisti-dark-100 dark:hover:bg-autisti-dark-800 dark:focus:ring-autisti-dark-300/20"
@@ -298,7 +298,7 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
                 </p>
               ) : null}
               <div className="autisti-glass-muted inline-flex size-12 shrink-0 items-center justify-center rounded-full border text-autisti-primary dark:text-autisti-dark-100">
-                <Truck className="size-5" />
+              <Truck className="size-5" />
               </div>
             </div>
           </div>
@@ -368,8 +368,8 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
               href={routeMapsHref}
               rel="noreferrer"
               target="_blank"
-            >
-              {loading ? <LoaderCircle className="size-4 animate-spin" /> : <Navigation className="size-4" />}
+          >
+            {loading ? <LoaderCircle className="size-4 animate-spin" /> : <Navigation className="size-4" />}
             </a>
           ) : (
             <span
@@ -379,7 +379,7 @@ export function DriverRoutePanel({ initialTheme, user }: DriverRoutePanelProps) 
               title="Nessuna tappa con indirizzo o coordinate"
             >
               {loading ? <LoaderCircle className="size-4 animate-spin" /> : <Navigation className="size-4" />}
-            </span>
+          </span>
           )}
         </div>
       </nav>
@@ -546,7 +546,7 @@ function StopCard({
         <div className="min-w-0 flex-1 autisti-task-copy">
           {!showDetails ? (
             <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-600 dark:text-slate-300">
                   {stop.customerName ?? "Fermata completata"}
                 </p>
@@ -571,13 +571,13 @@ function StopCard({
               ) : null}
 
               {hasBadges ? (
-                <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
                   {stop.logisticsTaskKind ? <TaskKindBadge kind={stop.logisticsTaskKind} /> : null}
                   {isActive ? (
                     <span className="autisti-task-status-badge rounded-full border border-emerald-300/80 bg-emerald-100 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200">
                       In corso
-                    </span>
-                  ) : null}
+              </span>
+            ) : null}
                   {stop.isPaused ? (
                     <span className="autisti-task-status-badge rounded-full border border-amber-300/80 bg-amber-100 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200">
                       In pausa
@@ -601,10 +601,11 @@ function StopCard({
                       S
                     </span>
                   ) : null}
-                </div>
-              ) : null}
+          </div>
+          ) : null}
 
               <dl className={`grid gap-1.5 text-sm ${hasBadges || stop.isFinished ? "mt-2" : ""}`}>
+                <InfoRow label="ID record" numeric value={String(stop.id)} />
                 <InfoRow label="Codice ADAM" value={stop.logisticCode !== null ? String(stop.logisticCode) : null} />
                 <InfoRow label="Cliente" value={stop.customerName} strong />
                 <InfoRow label="Indirizzo" value={stop.address} />
@@ -899,10 +900,10 @@ function StopCard({
                     {notesOpen ? "Nascondi note" : "Mostra note"}
                   </button>
                   {notesOpen ? (
-                    <p className="mt-2 whitespace-pre-wrap rounded-lg border border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] px-3 py-2 text-sm text-autisti-muted dark:text-autisti-dark-300">
+            <p className="mt-2 whitespace-pre-wrap rounded-lg border border-[color:var(--autisti-glass-border)] bg-[var(--autisti-glass-muted)] px-3 py-2 text-sm text-autisti-muted dark:text-autisti-dark-300">
                       {formatCustomerNote(stop.customerNote)}
-                    </p>
-                  ) : null}
+            </p>
+          ) : null}
                 </div>
               ) : null}
 
@@ -981,17 +982,17 @@ function StopCard({
                           />
                         </div>
                         <div className="flex items-center gap-3">
-                          {mapsHref ? (
-                            <a
+          {mapsHref ? (
+            <a
                               aria-label="Apri maps"
                               className="inline-flex size-14 items-center justify-center rounded-full border border-slate-300/80 bg-slate-400 text-white shadow-[0_8px_18px_rgba(100,116,139,0.22)] transition hover:bg-slate-500 dark:border-slate-500/50 dark:bg-slate-500 dark:hover:bg-slate-400"
-                              href={mapsHref}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
+              href={mapsHref}
+              rel="noreferrer"
+              target="_blank"
+            >
                               <MapPinned className="size-6" />
-                            </a>
-                          ) : null}
+            </a>
+          ) : null}
                           {stop.accessInfo || stop.accessAttachmentUrls?.length ? (
                             <button
                               aria-label="Info accesso"
