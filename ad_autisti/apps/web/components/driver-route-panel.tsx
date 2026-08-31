@@ -605,7 +605,12 @@ function StopCard({
           ) : null}
 
               <dl className={`grid gap-1.5 text-sm ${hasBadges || stop.isFinished ? "mt-2" : ""}`}>
-                <InfoRow label="ID record" numeric value={String(stop.id)} />
+                <InfoRow
+                  className="hidden md:grid"
+                  label="ID record"
+                  numeric
+                  value={String(stop.id)}
+                />
                 <InfoRow label="Codice ADAM" value={stop.logisticCode !== null ? String(stop.logisticCode) : null} />
                 <InfoRow label="Cliente" value={stop.customerName} strong />
                 <InfoRow label="Indirizzo" value={stop.address} />
@@ -1083,18 +1088,20 @@ function InfoRow({
   value,
   strong = false,
   numeric = false,
+  className,
 }: {
   label: string;
   value: string | null | undefined;
   strong?: boolean;
   numeric?: boolean;
+  className?: string;
 }) {
   if (!value) {
     return null;
   }
 
   return (
-    <div className="grid gap-0.5">
+    <div className={["grid gap-0.5", className].filter(Boolean).join(" ")}>
       <dt className="text-[0.68rem] uppercase tracking-wide text-autisti-muted dark:text-autisti-dark-300">
         {label}
       </dt>

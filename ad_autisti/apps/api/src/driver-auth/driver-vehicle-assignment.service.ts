@@ -9,7 +9,8 @@ export class DriverVehicleAssignmentService {
   ) {}
 
   /**
-   * Resolve today's driver for a vehicle from app_housekeeping.lg_vehicle + driven_by_us.
+   * Resolve today's driver for a vehicle from app_housekeeping.lg_vehicle + driven_by_us
+   * (rows for the selected checkout date).
    */
   async resolveDriverIdForVehicle(vehicleId: number, ymd: string): Promise<number | null> {
     if (!Number.isInteger(vehicleId) || vehicleId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
@@ -20,10 +21,7 @@ export class DriverVehicleAssignmentService {
       SELECT driven_by_us
       FROM app_housekeeping
       WHERE lg_vehicle = ${vehicleId}
-        AND (
-          checkout = ${ymd}
-          OR checkin = ${ymd}
-        )
+        AND checkout = ${ymd}
         AND IFNULL(deleted, 0) = 0
         AND deleted_at IS NULL
         AND driven_by_us > 0
@@ -44,10 +42,7 @@ export class DriverVehicleAssignmentService {
       SELECT id
       FROM app_housekeeping
       WHERE lg_vehicle = ${vehicleId}
-        AND (
-          checkout = ${ymd}
-          OR checkin = ${ymd}
-        )
+        AND checkout = ${ymd}
         AND IFNULL(deleted, 0) = 0
         AND deleted_at IS NULL
       ORDER BY lg_sequence ASC, id ASC

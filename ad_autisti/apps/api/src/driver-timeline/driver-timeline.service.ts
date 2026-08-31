@@ -112,10 +112,7 @@ export class DriverTimelineService {
         SELECT id
         FROM app_housekeeping
         WHERE driven_by_us = ${driverId}
-          AND (
-            checkout = ${ymd}
-            OR checkin = ${ymd}
-          )
+          AND checkout = ${ymd}
           AND IFNULL(deleted, 0) = 0
           AND deleted_at IS NULL
         ORDER BY lg_sequence ASC, id ASC
