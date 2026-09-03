@@ -554,6 +554,7 @@ function StopCard({
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">{stop.address}</p>
                 ) : null}
               </div>
+              <PremiumStraordinariaBadges premium={stop.premium} straordinaria={stop.straordinaria} />
               <span className="shrink-0 rounded-full border border-slate-300/80 bg-slate-300/40 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-slate-500 dark:border-slate-600/50 dark:bg-slate-700/40 dark:text-slate-400">
                 Completato
               </span>
@@ -583,24 +584,7 @@ function StopCard({
                       In pausa
                     </span>
                   ) : null}
-                  {stop.premium ? (
-                    <span
-                      aria-label="Premium"
-                      className="inline-flex size-6 items-center justify-center rounded-full border border-amber-300/80 bg-amber-100 text-[0.72rem] font-semibold text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200"
-                      title="Premium"
-                    >
-                      P
-                    </span>
-                  ) : null}
-                  {stop.straordinaria ? (
-                    <span
-                      aria-label="Straordinario"
-                      className="inline-flex size-6 items-center justify-center rounded-full border border-red-300/80 bg-red-100 text-[0.72rem] font-semibold text-red-700 dark:border-red-400/40 dark:bg-red-500/20 dark:text-red-200"
-                      title="Straordinario"
-                    >
-                      S
-                    </span>
-                  ) : null}
+                  <PremiumStraordinariaBadges premium={stop.premium} straordinaria={stop.straordinaria} />
           </div>
           ) : null}
 
@@ -921,7 +905,7 @@ function StopCard({
                   ) : null}
                   {stop.straordinaria ? (
                     <li className="font-medium text-red-700 dark:text-red-300">
-                      <span aria-hidden>*</span> Portare l&apos;attrezzatura
+                      <span aria-hidden>*</span> Portare l&apos;attrezzatura straordinaria
                     </li>
                   ) : null}
                 </ul>
@@ -1116,6 +1100,41 @@ function InfoRow({
         {value}
       </dd>
     </div>
+  );
+}
+
+function PremiumStraordinariaBadges({
+  premium,
+  straordinaria,
+}: {
+  premium: boolean;
+  straordinaria: boolean;
+}) {
+  if (!premium && !straordinaria) {
+    return null;
+  }
+
+  return (
+    <>
+      {premium ? (
+        <span
+          aria-label="Premium"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-300/80 bg-amber-100 text-[0.72rem] font-semibold text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200"
+          title="Premium"
+        >
+          P
+        </span>
+      ) : null}
+      {straordinaria ? (
+        <span
+          aria-label="Straordinario"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-red-300/80 bg-red-100 text-[0.72rem] font-semibold text-red-700 dark:border-red-400/40 dark:bg-red-500/20 dark:text-red-200"
+          title="Straordinario"
+        >
+          S
+        </span>
+      ) : null}
+    </>
   );
 }
 

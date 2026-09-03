@@ -18,6 +18,8 @@ const KEY_CHOICE_TYPES: Record<number, string> = {
   3: "QR Code",
 };
 
+const STRAORDINARIA_OPERATION_IDS = new Set([3, 37, 38]);
+
 const housekeepingStopSelect = {
   id: true,
   sequence: true,
@@ -39,6 +41,7 @@ const housekeepingStopSelect = {
   checkin: true,
   checkinTime: true,
   cleanedByUs: true,
+  operationId: true,
   structure: {
     select: {
       logisticCode: true,
@@ -58,6 +61,15 @@ const housekeepingStopSelect = {
           name: true,
           nameFrontend: true,
         },
+      },
+    },
+  },
+  operation: {
+    select: {
+      langs: {
+        where: { languageId: 1 },
+        select: { name: true },
+        take: 1,
       },
     },
   },
@@ -492,6 +504,7 @@ type HousekeepingStopRow = {
   checkin: Date | null;
   checkinTime: string | null;
   cleanedByUs: number | null;
+  operationId: number | null;
   structure: {
     logisticCode: number | null;
     address1: string | null;
@@ -510,6 +523,9 @@ type HousekeepingStopRow = {
       nameFrontend: string | null;
     };
   };
+  operation: {
+    langs: Array<{ name: string | null }>;
+  } | null;
   activity: {
     langs: Array<{ name: string | null }>;
   } | null;
@@ -533,6 +549,7 @@ function mapHousekeepingStop(
   const cleaner = row.assignedUser;
   const cleanerAlias = formatPersonName(cleaner?.name, cleaner?.lastname);
   const activityName = row.activity?.langs[0]?.name?.trim() || null;
+  const operationName = row.operation?.langs[0]?.name?.trim() || null;
   const lgSequence = toNullableInt(row.lgSequence);
   const checkoutYmd = formatDateYmd(row.checkout) ?? ymd;
   const realStartIso = timeFieldToIso(row.realStart, checkoutYmd);
@@ -547,7 +564,7 @@ function mapHousekeepingStop(
     customerName,
     logisticCode: toNullableInt(structure.logisticCode),
     logisticsTaskKind: mapLgOperation(row.lgOperation),
-    straordinaria: isStraordinariaActivity(activityName),
+    straordinaria: isStraordinariaStop(row.operationId, operationName, activityName),
     premium: Boolean(structure.premium),
     customerNote: row.notes?.trim() || null,
     cleanerAlias,
@@ -801,11 +818,23 @@ function mapLgOperation(value: string | null | undefined): string | null {
   return trimmed;
 }
 
-function isStraordinariaActivity(activityName: string | null): boolean {
-  if (!activityName) {
+function isStraordinariaStop(
+  operationId: number | null | undefined,
+  operationName: string | null,
+  activityName: string | null,
+): boolean {
+  if (operationId != null && STRAORDINARIA_OPERATION_IDS.has(operationId)) {
+    return true;
+  }
+  return isStraordinariaLabel(operationName) || isStraordinariaLabel(activityName);
+}
+
+function isStraordinariaLabel(value: string | null): boolean {
+  if (!value) {
     return false;
   }
-  return /straordinar/i.test(activityName);
+  const normalized = value.toLowerCase().trim();
+  return /straordinar/i.test(normalized) || normalized === "continuazione ps";
 }
 
 function toCoordinate(value: string | null | undefined): number | null {
